@@ -7,7 +7,6 @@
 #include <unistd.h>
 #include <vector>
 
-
 using namespace std;
 
 const std::string WHITESPACE = " \n\r\t\f\v";

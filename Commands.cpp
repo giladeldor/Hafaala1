@@ -7,7 +7,6 @@
 #include <unistd.h>
 #include <vector>
 
-
 using namespace std;
 
 const std::string WHITESPACE = " \n\r\t\f\v";
@@ -74,13 +73,27 @@ void _removeBackgroundSign(char *cmd_line) {
 
 // TODO: Add your implementation for classes in Commands.h
 
-SmallShell::SmallShell() {
-  // TODO: add your implementation
-}
+SmallShell::SmallShell()
+    : smash_pid(getpid()), current_display_prompt("smash"),
+      last_dir_ptr(new char *(nullptr)), default_display_prompt("smash") {}
+
+// TODO: add your implementation
 
 SmallShell::~SmallShell() {
   // TODO: add your implementation
 }
+
+char **SmallShell::getLastDirPtr() const { return last_dir_ptr; }
+
+/* Weird bug
+void SmallShell::setDisplayPrompt(string new_display_line) {
+  current_display_prompt = new_display_line;
+}
+void SmallShell::setLastDirPtr(char **last_dir) { last_dir_ptr = last_dir; }
+
+const pid_t SmallShell::getPid() const { return smash_pid; }
+string SmallShell::getDisplayPrompt() const { return current_display_prompt; }
+*/
 
 /**
  * Creates and returns a pointer to Command class which matches the given
@@ -88,22 +101,23 @@ SmallShell::~SmallShell() {
  */
 Command *SmallShell::CreateCommand(const char *cmd_line) {
   // For example:
-  /*
-    string cmd_s = _trim(string(cmd_line));
-    string firstWord = cmd_s.substr(0, cmd_s.find_first_of(" \n"));
 
-    if (firstWord.compare("pwd") == 0) {
-      return new GetCurrDirCommand(cmd_line);
-    }
-    else if (firstWord.compare("showpid") == 0) {
-      return new ShowPidCommand(cmd_line);
-    }
-    else if ...
-    .....
+  string cmd_s = _trim(string(cmd_line));
+  /* check if special command I.E pipe*/
+  string firstWord = cmd_s.substr(0, cmd_s.find_first_of(" \n"));
+
+  if (firstWord.compare("chprompt") == 0) {
+    // call chprompt
+  }
+  /*if (firstWord.compare("pwd") == 0) {
+    return new GetCurrDirCommand(cmd_line);
+  } else if (firstWord.compare("showpid") == 0) {
+    return new ShowPidCommand(cmd_line);
+  } else if
     else {
       return new ExternalCommand(cmd_line);
-    }
-    */
+    }*/
+
   return nullptr;
 }
 
@@ -115,3 +129,18 @@ void SmallShell::executeCommand(const char *cmd_line) {
   // Please note that you must fork smash process for some commands (e.g.,
   // external commands....)
 }
+
+Command::Command(const char *cmd_line, bool background_command_flag)
+    : command_line(string(cmd_line)), argv(new char *[MAX_ARGV_LENGTH]),
+      argc(_parseCommandLine(cmd_line, argv)), background_command_flag(false) {}
+
+Command::~Command() {
+  for (int i = 0; i < argc; i++) {
+    free(argv[i]);
+    argv[i] = NULL;
+  }
+  delete[] argv;
+}
+
+const string Command::getCommandLine() const { return command_line; }
+bool Command::isBackgroundCommand() const { return background_command_flag; }

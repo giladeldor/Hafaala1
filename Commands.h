@@ -1,17 +1,26 @@
 #ifndef SMASH_COMMAND_H_
 #define SMASH_COMMAND_H_
 
+#include <string.h>
 #include <vector>
 
 #define COMMAND_ARGS_MAX_LENGTH (200)
 #define COMMAND_MAX_ARGS (20)
+#define MAX_ARGV_LENGTH (2 * COMMAND_MAX_ARGS + 5)
 
 class Command {
+protected:
+  const string command_line;
+  char **argv;
+  const int argc;
+  bool background_command_flag;
   // TODO: Add your data members
 public:
-  Command(const char *cmd_line);
+  Command(const char *cmd_line, bool background_command_flag);
   virtual ~Command();
   virtual void execute() = 0;
+  const string getCommandLine() const;
+  bool isBackgroundCommand() const;
   // virtual void prepare();
   // virtual void cleanup();
   // TODO: Add your extra methods if needed
@@ -160,6 +169,14 @@ public:
 
 class SmallShell {
 private:
+  const string default_display_prompt;
+
+  const pid_t smash_pid;
+  string current_display_prompt;
+  char **const last_dir_ptr;
+  /*
+  add more data members
+  */
   // TODO: Add your data members
   SmallShell();
 
@@ -175,6 +192,12 @@ public:
   }
   ~SmallShell();
   void executeCommand(const char *cmd_line);
+  void setDisplayPrompt(string new_display_line);
+  void setLastDirPtr(char **last_dir);
+
+  const pid_t getPid() const;
+  string getDisplayPrompt() const;
+  char **getLastDirPtr() const;
   // TODO: add extra methods as needed
 };
 

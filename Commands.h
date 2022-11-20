@@ -181,10 +181,11 @@ public:
 class SmallShell {
 private:
   const std::string default_display_prompt;
-
   const pid_t smash_pid;
   std::string current_display_prompt;
   char **last_dir_ptr;
+  bool is_working;
+
   /*
   add more data members
   */
@@ -211,6 +212,9 @@ public:
   char **getLastDirPtr() const;
 
   void syscallError(const std::string &syscall);
+  bool isSmashWorking() const;
+  void disableSmash();
+  void killAllJobs();
 };
 
 #endif // SMASH_COMMAND_H_

@@ -1,6 +1,7 @@
 #ifndef SMASH_COMMAND_H_
 #define SMASH_COMMAND_H_
 
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -191,7 +192,7 @@ private:
   SmallShell();
 
 public:
-  Command *CreateCommand(const char *cmd_line);
+  std::shared_ptr<Command> CreateCommand(const char *cmd_line);
   SmallShell(SmallShell const &) = delete;     // disable copy ctor
   void operator=(SmallShell const &) = delete; // disable = operator
   static SmallShell &getInstance()             // make SmallShell singleton

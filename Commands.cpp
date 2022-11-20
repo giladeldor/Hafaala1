@@ -75,7 +75,7 @@ void _removeBackgroundSign(char *cmd_line) {
 // Not finished
 SmallShell::SmallShell()
     : smash_pid(getpid()), current_display_prompt("smash"),
-      last_dir_ptr(new char *(nullptr)), default_display_prompt("smash") {}
+      last_dir_ptr(nullptr), default_display_prompt("smash") {}
 
 // TODO: add your implementation
 
@@ -99,7 +99,7 @@ std::string SmallShell::getDisplayPrompt() const {
  * Creates and returns a pointer to Command class which matches the given
  * command line (cmd_line)
  */
-Command *SmallShell::CreateCommand(const char *cmd_line) {
+std::shared_ptr<Command> SmallShell::CreateCommand(const char *cmd_line) {
   // For example:
 
   std::string cmd_s = _trim(std::string(cmd_line));
@@ -107,11 +107,11 @@ Command *SmallShell::CreateCommand(const char *cmd_line) {
   std::string firstWord = cmd_s.substr(0, cmd_s.find_first_of(" \n"));
 
   if (firstWord.compare("chprompt") == 0) {
-    return new ChangePromptCommand(cmd_line);
+    return std::make_shared<ChangePromptCommand>(cmd_line);
   } else if (firstWord.compare("showpid") == 0) {
-    return new ShowPidCommand(cmd_line);
+    return std::make_shared<ShowPidCommand>(cmd_line);
   } else if (firstWord.compare("pwd") == 0) {
-    return new GetCurrDirCommand(cmd_line);
+    return std::make_shared<GetCurrDirCommand>(cmd_line);
   }
   /*if (firstWord.compare("pwd") == 0) {
     return new GetCurrDirCommand(cmd_line);

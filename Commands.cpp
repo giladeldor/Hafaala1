@@ -74,9 +74,8 @@ void _removeBackgroundSign(char *cmd_line) {
 
 // Not finished
 SmallShell::SmallShell()
-    : smash_pid(getpid()), current_display_prompt("smash"),
-      last_dir_ptr(nullptr), default_display_prompt("smash"), is_working(true) {
-}
+    : smash_pid(getpid()), current_display_prompt("smash"), last_dir(""),
+      default_display_prompt("smash"), is_working(true) {}
 
 // TODO: add your implementation
 
@@ -84,12 +83,14 @@ SmallShell::~SmallShell() {
   // TODO: add your implementation
 }
 
-char **SmallShell::getLastDirPtr() const { return last_dir_ptr; }
+const std::string &SmallShell::getLastDir() const { return last_dir; }
 
 void SmallShell::setDisplayPrompt(std::string new_display_line) {
   current_display_prompt = new_display_line;
 }
-void SmallShell::setLastDirPtr(char **last_dir) { last_dir_ptr = last_dir; }
+void SmallShell::setLastDir(const std::string &last_dir) {
+  this->last_dir = last_dir;
+}
 
 const pid_t SmallShell::getPid() const { return smash_pid; }
 std::string SmallShell::getDisplayPrompt() const {
@@ -116,9 +117,12 @@ std::shared_ptr<Command> SmallShell::CreateCommand(const char *cmd_line) {
     return std::make_shared<ShowPidCommand>(cmd_line);
   } else if (firstWord.compare("pwd") == 0) {
     return std::make_shared<GetCurrDirCommand>(cmd_line);
+  } else if (firstWord.compare("cd") == 0) {
+    return std::make_shared<ChangeDirCommand>(cmd_line);
   } else if (firstWord.compare("quit") == 0) {
     return std::make_shared<QuitCommand>(cmd_line, nullptr);
   }
+
   /*if (firstWord.compare("pwd") == 0) {
     return new GetCurrDirCommand(cmd_line);
   } else if (firstWord.compare("showpid") == 0) {
@@ -145,7 +149,7 @@ void SmallShell::executeCommand(const char *cmd_line) {
 
 void SmallShell::syscallError(const std::string &syscall) {
   std::string msg =
-      std::string("smash error: " + syscall + std::string("failed"));
+      std::string("smash error: " + syscall + std::string(" failed"));
   perror(msg.c_str());
 }
 
@@ -192,6 +196,55 @@ void GetCurrDirCommand::execute(SmallShell *smash) {
   } else {
     smash->syscallError("getcwd");
   }
+}
+
+ChangeDirCommand::ChangeDirCommand(const char *cmd_line)
+    : BuiltInCommand(cmd_line) {}
+
+void ChangeDirCommand::execute(SmallShell *smash) {
+  if (argc > 2) {
+    std::cerr << "smash error: cd: too many arguments" << std::endl;
+    return;
+  }
+
+  char cwd[PATH_MAX];
+  if (getcwd(cwd, sizeof(cwd)) == NULL) {
+    smash->syscallError("getcwd");
+  }
+
+  if (argc == 1) {
+    if (chdir(getenv("HOME")) != 0) {
+      smash->syscallError("chdir");
+      return;
+    }
+  } else {
+    const char *target = argv[1];
+
+    // Handle cd to previous directory.
+    if (strcmp(target, "-") == 0) {
+      auto lastDir = smash->getLastDir();
+
+      if (lastDir.empty()) {
+        std::cerr << "smash error: cd: OLDPWD not set" << std::endl;
+        return;
+      } else {
+        if (chdir(lastDir.c_str()) != 0) {
+          smash->syscallError("chdir");
+          return;
+        }
+      }
+    }
+
+    // Handle general cd.
+    else {
+      if (chdir(target) != 0) {
+        smash->syscallError("chdir");
+        return;
+      }
+    }
+  }
+
+  smash->setLastDir(cwd);
 }
 
 QuitCommand::QuitCommand(const char *cmd_line, JobsList *jobs)

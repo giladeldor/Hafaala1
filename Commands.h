@@ -30,7 +30,7 @@ public:
 
 class BuiltInCommand : public Command {
 public:
-  BuiltInCommand(const char *cmd_line);
+  BuiltInCommand(const char *cmd_line) : Command(cmd_line, false) {}
   virtual ~BuiltInCommand() {}
 };
 
@@ -208,7 +208,8 @@ public:
   const pid_t getPid() const;
   std::string getDisplayPrompt() const;
   char **getLastDirPtr() const;
-  // TODO: add extra methods as needed
+
+  void syscallError(const std::string &syscall);
 };
 
 #endif // SMASH_COMMAND_H_

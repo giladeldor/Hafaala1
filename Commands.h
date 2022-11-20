@@ -1,16 +1,18 @@
 #ifndef SMASH_COMMAND_H_
 #define SMASH_COMMAND_H_
 
-#include <string.h>
+#include <string>
 #include <vector>
 
 #define COMMAND_ARGS_MAX_LENGTH (200)
 #define COMMAND_MAX_ARGS (20)
 #define MAX_ARGV_LENGTH (2 * COMMAND_MAX_ARGS + 5)
 
+class SmallShell;
+
 class Command {
 protected:
-  const string command_line;
+  const std::string command_line;
   char **argv;
   const int argc;
   bool background_command_flag;
@@ -19,11 +21,17 @@ public:
   Command(const char *cmd_line, bool background_command_flag);
   virtual ~Command();
   virtual void execute(SmallShell *smash) = 0;
-  const string getCommandLine() const;
+  const std::string getCommandLine() const;
   bool isBackgroundCommand() const;
   // virtual void prepare();
   // virtual void cleanup();
   // TODO: Add your extra methods if needed
+};
+
+class BuiltInCommand : public Command {
+public:
+  BuiltInCommand(const char *cmd_line);
+  virtual ~BuiltInCommand() {}
 };
 
 class ChangePromptCommand : public BuiltInCommand {
@@ -31,12 +39,6 @@ public:
   ChangePromptCommand(const char *cmd_line);
   virtual ~ChangePromptCommand() {}
   void execute(SmallShell *smash) override;
-};
-
-class BuiltInCommand : public Command {
-public:
-  BuiltInCommand(const char *cmd_line);
-  virtual ~BuiltInCommand() {}
 };
 
 class ExternalCommand : public Command {
@@ -176,10 +178,10 @@ public:
 
 class SmallShell {
 private:
-  const string default_display_prompt;
+  const std::string default_display_prompt;
 
   const pid_t smash_pid;
-  string current_display_prompt;
+  std::string current_display_prompt;
   char **last_dir_ptr;
   /*
   add more data members
@@ -199,11 +201,11 @@ public:
   }
   ~SmallShell();
   void executeCommand(const char *cmd_line);
-  void setDisplayPrompt(string new_display_line);
+  void setDisplayPrompt(std::string new_display_line);
   void setLastDirPtr(char **last_dir);
 
   const pid_t getPid() const;
-  string getDisplayPrompt() const;
+  std::string getDisplayPrompt() const;
   char **getLastDirPtr() const;
   // TODO: add extra methods as needed
 };

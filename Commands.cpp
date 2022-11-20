@@ -73,6 +73,7 @@ void _removeBackgroundSign(char *cmd_line) {
 
 // TODO: Add your implementation for classes in Commands.h
 
+// Not finished
 SmallShell::SmallShell()
     : smash_pid(getpid()), current_display_prompt("smash"),
       last_dir_ptr(new char *(nullptr)), default_display_prompt("smash") {}
@@ -85,7 +86,6 @@ SmallShell::~SmallShell() {
 
 char **SmallShell::getLastDirPtr() const { return last_dir_ptr; }
 
-// Weird bug
 void SmallShell::setDisplayPrompt(string new_display_line) {
   current_display_prompt = new_display_line;
 }
@@ -153,4 +153,11 @@ void ChangePromptCommand::execute(SmallShell *smash) {
   } else {
     smash->setDisplayPrompt(string(argv[1]));
   }
+}
+
+ShowPidCommand::ShowPidCommand(const char *cmd_line)
+    : BuiltInCommand(cmd_line) {}
+
+void ShowPidCommand::execute(SmallShell *smash) {
+  std::cout << "smash pid is " << smash->getPid() << endl;
 }

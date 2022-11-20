@@ -98,6 +98,7 @@ public:
 
 class JobsList {
 public:
+  int id;
   class JobEntry {
     // TODO: Add your data members
   };

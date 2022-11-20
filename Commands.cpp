@@ -85,7 +85,7 @@ SmallShell::~SmallShell() {
 
 char **SmallShell::getLastDirPtr() const { return last_dir_ptr; }
 
-/* Weird bug
+// Weird bug
 void SmallShell::setDisplayPrompt(string new_display_line) {
   current_display_prompt = new_display_line;
 }
@@ -93,7 +93,6 @@ void SmallShell::setLastDirPtr(char **last_dir) { last_dir_ptr = last_dir; }
 
 const pid_t SmallShell::getPid() const { return smash_pid; }
 string SmallShell::getDisplayPrompt() const { return current_display_prompt; }
-*/
 
 /**
  * Creates and returns a pointer to Command class which matches the given

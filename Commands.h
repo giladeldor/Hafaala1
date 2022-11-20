@@ -173,7 +173,7 @@ private:
 
   const pid_t smash_pid;
   string current_display_prompt;
-  char **const last_dir_ptr;
+  char **last_dir_ptr;
   /*
   add more data members
   */

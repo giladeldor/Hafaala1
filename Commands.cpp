@@ -1,41 +1,40 @@
 #include "Commands.h"
 #include <iomanip>
 #include <iostream>
+#include <limits.h>
 #include <sstream>
 #include <string.h>
 #include <sys/wait.h>
 #include <unistd.h>
 #include <vector>
 
-using namespace std;
-
 const std::string WHITESPACE = " \n\r\t\f\v";
 
 #if 0
-#define FUNC_ENTRY() cout << __PRETTY_FUNCTION__ << " --> " << endl;
+#define FUNC_ENTRY() cout << __PRETTY_FUNCTION__ << " --> " << std::endl;
 
-#define FUNC_EXIT() cout << __PRETTY_FUNCTION__ << " <-- " << endl;
+#define FUNC_EXIT() cout << __PRETTY_FUNCTION__ << " <-- " << std::endl;
 #else
 #define FUNC_ENTRY()
 #define FUNC_EXIT()
 #endif
 
-string _ltrim(const std::string &s) {
+std::string _ltrim(const std::string &s) {
   size_t start = s.find_first_not_of(WHITESPACE);
   return (start == std::string::npos) ? "" : s.substr(start);
 }
 
-string _rtrim(const std::string &s) {
+std::string _rtrim(const std::string &s) {
   size_t end = s.find_last_not_of(WHITESPACE);
   return (end == std::string::npos) ? "" : s.substr(0, end + 1);
 }
 
-string _trim(const std::string &s) { return _rtrim(_ltrim(s)); }
+std::string _trim(const std::string &s) { return _rtrim(_ltrim(s)); }
 
 int _parseCommandLine(const char *cmd_line, char **args) {
   FUNC_ENTRY()
   int i = 0;
-  std::istringstream iss(_trim(string(cmd_line)).c_str());
+  std::istringstream iss(_trim(std::string(cmd_line)).c_str());
   for (std::string s; iss >> s;) {
     args[i] = (char *)malloc(s.length() + 1);
     memset(args[i], 0, s.length() + 1);
@@ -48,16 +47,16 @@ int _parseCommandLine(const char *cmd_line, char **args) {
 }
 
 bool _isBackgroundComamnd(const char *cmd_line) {
-  const string str(cmd_line);
+  const std::string str(cmd_line);
   return str[str.find_last_not_of(WHITESPACE)] == '&';
 }
 
 void _removeBackgroundSign(char *cmd_line) {
-  const string str(cmd_line);
+  const std::string str(cmd_line);
   // find last character other than spaces
   unsigned int idx = str.find_last_not_of(WHITESPACE);
   // if all characters are spaces then return
-  if (idx == string::npos) {
+  if (idx == std::string::npos) {
     return;
   }
   // if the command line does not end with & then return
@@ -86,13 +85,15 @@ SmallShell::~SmallShell() {
 
 char **SmallShell::getLastDirPtr() const { return last_dir_ptr; }
 
-void SmallShell::setDisplayPrompt(string new_display_line) {
+void SmallShell::setDisplayPrompt(std::string new_display_line) {
   current_display_prompt = new_display_line;
 }
 void SmallShell::setLastDirPtr(char **last_dir) { last_dir_ptr = last_dir; }
 
 const pid_t SmallShell::getPid() const { return smash_pid; }
-string SmallShell::getDisplayPrompt() const { return current_display_prompt; }
+std::string SmallShell::getDisplayPrompt() const {
+  return current_display_prompt;
+}
 
 /**
  * Creates and returns a pointer to Command class which matches the given
@@ -101,9 +102,9 @@ string SmallShell::getDisplayPrompt() const { return current_display_prompt; }
 Command *SmallShell::CreateCommand(const char *cmd_line) {
   // For example:
 
-  string cmd_s = _trim(string(cmd_line));
+  std::string cmd_s = _trim(std::string(cmd_line));
   /* check if special command I.E pipe*/
-  string firstWord = cmd_s.substr(0, cmd_s.find_first_of(" \n"));
+  std::string firstWord = cmd_s.substr(0, cmd_s.find_first_of(" \n"));
 
   if (firstWord.compare("chprompt") == 0) {
     return new ChangePromptCommand(cmd_line);
@@ -125,16 +126,25 @@ Command *SmallShell::CreateCommand(const char *cmd_line) {
 }
 
 void SmallShell::executeCommand(const char *cmd_line) {
-  // TODO: Add your implementation here
-  // for example:
-  // Command* cmd = CreateCommand(cmd_line);
-  // cmd->execute();
-  // Please note that you must fork smash process for some commands (e.g.,
-  // external commands....)
+  auto command = CreateCommand(cmd_line);
+  // TODO: remove this.
+  if (!command) {
+    exit(1);
+  }
+
+  command->execute(this);
+
+  // TODO: fork when using external commands
+}
+
+void SmallShell::syscallError(const std::string &syscall) {
+  std::string msg =
+      std::string("smash error: " + syscall + std::string("failed"));
+  perror(msg.c_str());
 }
 
 Command::Command(const char *cmd_line, bool background_command_flag)
-    : command_line(string(cmd_line)), argv(new char *[MAX_ARGV_LENGTH]),
+    : command_line(std::string(cmd_line)), argv(new char *[MAX_ARGV_LENGTH]),
       argc(_parseCommandLine(cmd_line, argv)), background_command_flag(false) {}
 
 Command::~Command() {
@@ -145,7 +155,7 @@ Command::~Command() {
   delete[] argv;
 }
 
-const string Command::getCommandLine() const { return command_line; }
+const std::string Command::getCommandLine() const { return command_line; }
 bool Command::isBackgroundCommand() const { return background_command_flag; }
 
 ChangePromptCommand::ChangePromptCommand(const char *cmd_line)
@@ -155,7 +165,7 @@ void ChangePromptCommand::execute(SmallShell *smash) {
   if (argc == 1) {
     smash->setDisplayPrompt("smash");
   } else {
-    smash->setDisplayPrompt(string(argv[1]));
+    smash->setDisplayPrompt(std::string(argv[1]));
   }
 }
 
@@ -163,15 +173,17 @@ ShowPidCommand::ShowPidCommand(const char *cmd_line)
     : BuiltInCommand(cmd_line) {}
 
 void ShowPidCommand::execute(SmallShell *smash) {
-  std::cout << "smash pid is " << smash->getPid() << endl;
+  std::cout << "smash pid is " << smash->getPid() << std::endl;
 }
 
 GetCurrDirCommand::GetCurrDirCommand(const char *cmd_line)
     : BuiltInCommand(cmd_line) {}
 
 void GetCurrDirCommand::execute(SmallShell *smash) {
-  char *current_full_path = *(smash->getLastDirPtr());
-  std::cout << current_full_path << endl;
-  free(current_full_path);
-  current_full_path = NULL;
+  char cwd[PATH_MAX];
+  if (getcwd(cwd, sizeof(cwd)) != NULL) {
+    std::cout << cwd << std::endl;
+  } else {
+    smash->syscallError("getcwd");
+  }
 }

@@ -161,3 +161,13 @@ ShowPidCommand::ShowPidCommand(const char *cmd_line)
 void ShowPidCommand::execute(SmallShell *smash) {
   std::cout << "smash pid is " << smash->getPid() << endl;
 }
+
+GetCurrDirCommand::GetCurrDirCommand(const char *cmd_line)
+    : BuiltInCommand(cmd_line) {}
+
+void GetCurrDirCommand::execute(SmallShell *smash) {
+  char *current_full_path = *(smash->getLastDirPtr());
+  std::cout << current_full_path << endl;
+  free(current_full_path);
+  current_full_path = NULL;
+}

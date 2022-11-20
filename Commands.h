@@ -68,9 +68,11 @@ public:
 };
 
 class ChangeDirCommand : public BuiltInCommand {
-  // TODO: Add your data members public:
-  ChangeDirCommand(const char *cmd_line, char **plastPwd);
+public:
+  ChangeDirCommand(const char *cmd_line);
+
   virtual ~ChangeDirCommand() {}
+
   void execute(SmallShell *smash) override;
 };
 
@@ -184,7 +186,7 @@ private:
 
   const pid_t smash_pid;
   std::string current_display_prompt;
-  char **last_dir_ptr;
+  std::string last_dir;
   /*
   add more data members
   */
@@ -204,11 +206,11 @@ public:
   ~SmallShell();
   void executeCommand(const char *cmd_line);
   void setDisplayPrompt(std::string new_display_line);
-  void setLastDirPtr(char **last_dir);
+  void setLastDir(const std::string &last_dir);
 
   const pid_t getPid() const;
   std::string getDisplayPrompt() const;
-  char **getLastDirPtr() const;
+  const std::string &getLastDir() const;
 
   void syscallError(const std::string &syscall);
 };

@@ -18,12 +18,19 @@ protected:
 public:
   Command(const char *cmd_line, bool background_command_flag);
   virtual ~Command();
-  virtual void execute() = 0;
+  virtual void execute(SmallShell *smash) = 0;
   const string getCommandLine() const;
   bool isBackgroundCommand() const;
   // virtual void prepare();
   // virtual void cleanup();
   // TODO: Add your extra methods if needed
+};
+
+class ChangePromptCommand : public BuiltInCommand {
+public:
+  ChangePromptCommand(const char *cmd_line);
+  virtual ~ChangePromptCommand() {}
+  void execute(SmallShell *smash) override;
 };
 
 class BuiltInCommand : public Command {
@@ -36,7 +43,7 @@ class ExternalCommand : public Command {
 public:
   ExternalCommand(const char *cmd_line);
   virtual ~ExternalCommand() {}
-  void execute() override;
+  void execute(SmallShell *smash) override;
 };
 
 class PipeCommand : public Command {
@@ -44,7 +51,7 @@ class PipeCommand : public Command {
 public:
   PipeCommand(const char *cmd_line);
   virtual ~PipeCommand() {}
-  void execute() override;
+  void execute(SmallShell *smash) override;
 };
 
 class RedirectionCommand : public Command {
@@ -52,7 +59,7 @@ class RedirectionCommand : public Command {
 public:
   explicit RedirectionCommand(const char *cmd_line);
   virtual ~RedirectionCommand() {}
-  void execute() override;
+  void execute(SmallShell *smash) override;
   // void prepare() override;
   // void cleanup() override;
 };
@@ -61,21 +68,21 @@ class ChangeDirCommand : public BuiltInCommand {
   // TODO: Add your data members public:
   ChangeDirCommand(const char *cmd_line, char **plastPwd);
   virtual ~ChangeDirCommand() {}
-  void execute() override;
+  void execute(SmallShell *smash) override;
 };
 
 class GetCurrDirCommand : public BuiltInCommand {
 public:
   GetCurrDirCommand(const char *cmd_line);
   virtual ~GetCurrDirCommand() {}
-  void execute() override;
+  void execute(SmallShell *smash) override;
 };
 
 class ShowPidCommand : public BuiltInCommand {
 public:
   ShowPidCommand(const char *cmd_line);
   virtual ~ShowPidCommand() {}
-  void execute() override;
+  void execute(SmallShell *smash) override;
 };
 
 class JobsList;
@@ -84,7 +91,7 @@ class QuitCommand : public BuiltInCommand {
 public:
   QuitCommand(const char *cmd_line, JobsList *jobs);
   virtual ~QuitCommand() {}
-  void execute() override;
+  void execute(SmallShell *smash) override;
 };
 
 class JobsList {
@@ -112,7 +119,7 @@ class JobsCommand : public BuiltInCommand {
 public:
   JobsCommand(const char *cmd_line, JobsList *jobs);
   virtual ~JobsCommand() {}
-  void execute() override;
+  void execute(SmallShell *smash) override;
 };
 
 class ForegroundCommand : public BuiltInCommand {
@@ -120,7 +127,7 @@ class ForegroundCommand : public BuiltInCommand {
 public:
   ForegroundCommand(const char *cmd_line, JobsList *jobs);
   virtual ~ForegroundCommand() {}
-  void execute() override;
+  void execute(SmallShell *smash) override;
 };
 
 class BackgroundCommand : public BuiltInCommand {
@@ -128,7 +135,7 @@ class BackgroundCommand : public BuiltInCommand {
 public:
   BackgroundCommand(const char *cmd_line, JobsList *jobs);
   virtual ~BackgroundCommand() {}
-  void execute() override;
+  void execute(SmallShell *smash) override;
 };
 
 class TimeoutCommand : public BuiltInCommand {
@@ -137,7 +144,7 @@ class TimeoutCommand : public BuiltInCommand {
 public:
   explicit TimeoutCommand(const char *cmd_line);
   virtual ~TimeoutCommand() {}
-  void execute() override;
+  void execute(SmallShell *smash) override;
 };
 
 class FareCommand : public BuiltInCommand {
@@ -146,7 +153,7 @@ class FareCommand : public BuiltInCommand {
 public:
   FareCommand(const char *cmd_line);
   virtual ~FareCommand() {}
-  void execute() override;
+  void execute(SmallShell *smash) override;
 };
 
 class SetcoreCommand : public BuiltInCommand {
@@ -155,7 +162,7 @@ class SetcoreCommand : public BuiltInCommand {
 public:
   SetcoreCommand(const char *cmd_line);
   virtual ~SetcoreCommand() {}
-  void execute() override;
+  void execute(SmallShell *smash) override;
 };
 
 class KillCommand : public BuiltInCommand {
@@ -164,7 +171,7 @@ class KillCommand : public BuiltInCommand {
 public:
   KillCommand(const char *cmd_line, JobsList *jobs);
   virtual ~KillCommand() {}
-  void execute() override;
+  void execute(SmallShell *smash) override;
 };
 
 class SmallShell {

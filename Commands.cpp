@@ -106,7 +106,7 @@ Command *SmallShell::CreateCommand(const char *cmd_line) {
   string firstWord = cmd_s.substr(0, cmd_s.find_first_of(" \n"));
 
   if (firstWord.compare("chprompt") == 0) {
-    // call chprompt
+    return new ChangePromptCommand(cmd_line);
   }
   /*if (firstWord.compare("pwd") == 0) {
     return new GetCurrDirCommand(cmd_line);
@@ -143,3 +143,14 @@ Command::~Command() {
 
 const string Command::getCommandLine() const { return command_line; }
 bool Command::isBackgroundCommand() const { return background_command_flag; }
+
+ChangePromptCommand::ChangePromptCommand(const char *cmd_line)
+    : BuiltInCommand(cmd_line) {}
+
+void ChangePromptCommand::execute(SmallShell *smash) {
+  if (argc == 1) {
+    smash->setDisplayPrompt("smash");
+  } else {
+    smash->setDisplayPrompt(string(argv[1]));
+  }
+}

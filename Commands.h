@@ -19,7 +19,7 @@ protected:
   bool background_command_flag;
   // TODO: Add your data members
 public:
-  Command(const char *cmd_line, bool background_command_flag);
+  Command(const std::string &cmd_line, bool background_command_flag);
   virtual ~Command();
   virtual void execute(SmallShell *smash) = 0;
   const std::string getCommandLine() const;
@@ -31,20 +31,20 @@ public:
 
 class BuiltInCommand : public Command {
 public:
-  BuiltInCommand(const char *cmd_line) : Command(cmd_line, false) {}
+  BuiltInCommand(const std::string &cmd_line) : Command(cmd_line, false) {}
   virtual ~BuiltInCommand() {}
 };
 
 class ChangePromptCommand : public BuiltInCommand {
 public:
-  ChangePromptCommand(const char *cmd_line);
+  ChangePromptCommand(const std::string &cmd_line);
   virtual ~ChangePromptCommand() {}
   void execute(SmallShell *smash) override;
 };
 
 class ExternalCommand : public Command {
 public:
-  ExternalCommand(const char *cmd_line);
+  ExternalCommand(const std::string &cmd_line, bool background_command_flag);
   virtual ~ExternalCommand() {}
   void execute(SmallShell *smash) override;
 };
@@ -52,7 +52,7 @@ public:
 class PipeCommand : public Command {
   // TODO: Add your data members
 public:
-  PipeCommand(const char *cmd_line);
+  PipeCommand(const std::string &cmd_line);
   virtual ~PipeCommand() {}
   void execute(SmallShell *smash) override;
 };
@@ -60,7 +60,7 @@ public:
 class RedirectionCommand : public Command {
   // TODO: Add your data members
 public:
-  explicit RedirectionCommand(const char *cmd_line);
+  explicit RedirectionCommand(const std::string &cmd_line);
   virtual ~RedirectionCommand() {}
   void execute(SmallShell *smash) override;
   // void prepare() override;
@@ -69,7 +69,7 @@ public:
 
 class ChangeDirCommand : public BuiltInCommand {
 public:
-  ChangeDirCommand(const char *cmd_line);
+  ChangeDirCommand(const std::string &cmd_line);
 
   virtual ~ChangeDirCommand() {}
 
@@ -78,14 +78,14 @@ public:
 
 class GetCurrDirCommand : public BuiltInCommand {
 public:
-  GetCurrDirCommand(const char *cmd_line);
+  GetCurrDirCommand(const std::string &cmd_line);
   virtual ~GetCurrDirCommand() {}
   void execute(SmallShell *smash) override;
 };
 
 class ShowPidCommand : public BuiltInCommand {
 public:
-  ShowPidCommand(const char *cmd_line);
+  ShowPidCommand(const std::string &cmd_line);
   virtual ~ShowPidCommand() {}
   void execute(SmallShell *smash) override;
 };
@@ -94,7 +94,7 @@ class JobsList;
 class QuitCommand : public BuiltInCommand {
   // TODO: Add your data members
 public:
-  QuitCommand(const char *cmd_line, JobsList *jobs);
+  QuitCommand(const std::string &cmd_line, JobsList *jobs);
   virtual ~QuitCommand() {}
   void execute(SmallShell *smash) override;
 };
@@ -123,7 +123,7 @@ public:
 class JobsCommand : public BuiltInCommand {
   // TODO: Add your data members
 public:
-  JobsCommand(const char *cmd_line, JobsList *jobs);
+  JobsCommand(const std::string &cmd_line, JobsList *jobs);
   virtual ~JobsCommand() {}
   void execute(SmallShell *smash) override;
 };
@@ -131,7 +131,7 @@ public:
 class ForegroundCommand : public BuiltInCommand {
   // TODO: Add your data members
 public:
-  ForegroundCommand(const char *cmd_line, JobsList *jobs);
+  ForegroundCommand(const std::string &cmd_line, JobsList *jobs);
   virtual ~ForegroundCommand() {}
   void execute(SmallShell *smash) override;
 };
@@ -139,7 +139,7 @@ public:
 class BackgroundCommand : public BuiltInCommand {
   // TODO: Add your data members
 public:
-  BackgroundCommand(const char *cmd_line, JobsList *jobs);
+  BackgroundCommand(const std::string &cmd_line, JobsList *jobs);
   virtual ~BackgroundCommand() {}
   void execute(SmallShell *smash) override;
 };
@@ -148,7 +148,7 @@ class TimeoutCommand : public BuiltInCommand {
   /* Optional */
   // TODO: Add your data members
 public:
-  explicit TimeoutCommand(const char *cmd_line);
+  explicit TimeoutCommand(const std::string &cmd_line);
   virtual ~TimeoutCommand() {}
   void execute(SmallShell *smash) override;
 };
@@ -157,7 +157,7 @@ class FareCommand : public BuiltInCommand {
   /* Optional */
   // TODO: Add your data members
 public:
-  FareCommand(const char *cmd_line);
+  FareCommand(const std::string &cmd_line);
   virtual ~FareCommand() {}
   void execute(SmallShell *smash) override;
 };
@@ -166,7 +166,7 @@ class SetcoreCommand : public BuiltInCommand {
   /* Optional */
   // TODO: Add your data members
 public:
-  SetcoreCommand(const char *cmd_line);
+  SetcoreCommand(const std::string &cmd_line);
   virtual ~SetcoreCommand() {}
   void execute(SmallShell *smash) override;
 };
@@ -175,7 +175,7 @@ class KillCommand : public BuiltInCommand {
   /* Bonus */
   // TODO: Add your data members
 public:
-  KillCommand(const char *cmd_line, JobsList *jobs);
+  KillCommand(const std::string &cmd_line, JobsList *jobs);
   virtual ~KillCommand() {}
   void execute(SmallShell *smash) override;
 };
@@ -195,7 +195,7 @@ private:
   SmallShell();
 
 public:
-  std::shared_ptr<Command> CreateCommand(const char *cmd_line);
+  std::shared_ptr<Command> CreateCommand(const std::string &cmd_line);
   SmallShell(SmallShell const &) = delete;     // disable copy ctor
   void operator=(SmallShell const &) = delete; // disable = operator
   static SmallShell &getInstance()             // make SmallShell singleton

@@ -31,10 +31,10 @@ std::string _rtrim(const std::string &s) {
 
 std::string _trim(const std::string &s) { return _rtrim(_ltrim(s)); }
 
-int _parseCommandLine(const char *cmd_line, char **args) {
+int _parseCommandLine(const std::string &cmd_line, char **args) {
   FUNC_ENTRY()
   int i = 0;
-  std::istringstream iss(_trim(std::string(cmd_line)).c_str());
+  std::istringstream iss(_trim(cmd_line).c_str());
   for (std::string s; iss >> s;) {
     args[i] = (char *)malloc(s.length() + 1);
     memset(args[i], 0, s.length() + 1);
@@ -98,53 +98,68 @@ std::string SmallShell::getDisplayPrompt() const {
 }
 bool SmallShell::isSmashWorking() const { return is_working; }
 void SmallShell::disableSmash() { is_working = false; }
-void SmallShell::killAllJobs() { // TODO: Implement killing all jobs}
+void SmallShell::killAllJobs() {
+  // TODO: Implement killing all jobs
 }
+
 /**
  * Creates and returns a pointer to Command class which matches the given
  * command line (cmd_line)
  */
-std::shared_ptr<Command> SmallShell::CreateCommand(const char *cmd_line) {
+std::shared_ptr<Command>
+SmallShell::CreateCommand(const std::string &cmd_line) {
   // For example:
 
-  std::string cmd_s = _trim(std::string(cmd_line));
-  /* check if special command I.E pipe*/
+  std::string cmd_s = _trim(cmd_line);
+  bool background_flag = cmd_s.back() == '&';
+  if (background_flag) {
+    cmd_s.pop_back();
+  }
   std::string firstWord = cmd_s.substr(0, cmd_s.find_first_of(" \n"));
 
-  if (firstWord.compare("chprompt") == 0) {
-    return std::make_shared<ChangePromptCommand>(cmd_line);
-  } else if (firstWord.compare("showpid") == 0) {
-    return std::make_shared<ShowPidCommand>(cmd_line);
-  } else if (firstWord.compare("pwd") == 0) {
-    return std::make_shared<GetCurrDirCommand>(cmd_line);
-  } else if (firstWord.compare("cd") == 0) {
-    return std::make_shared<ChangeDirCommand>(cmd_line);
-  } else if (firstWord.compare("quit") == 0) {
-    return std::make_shared<QuitCommand>(cmd_line, nullptr);
-  }
+  /* check if special command I.E pipe*/
 
-  /*if (firstWord.compare("pwd") == 0) {
-    return new GetCurrDirCommand(cmd_line);
+  if (firstWord.compare("chprompt") == 0) {
+    return std::make_shared<ChangePromptCommand>(cmd_s);
   } else if (firstWord.compare("showpid") == 0) {
-    return new ShowPidCommand(cmd_line);
-  } else if
-    else {
-      return new ExternalCommand(cmd_line);
-    }*/
+    return std::make_shared<ShowPidCommand>(cmd_s);
+  } else if (firstWord.compare("pwd") == 0) {
+    return std::make_shared<GetCurrDirCommand>(cmd_s);
+  } else if (firstWord.compare("cd") == 0) {
+    return std::make_shared<ChangeDirCommand>(cmd_s);
+  } else if (firstWord.compare("quit") == 0) {
+    return std::make_shared<QuitCommand>(cmd_s, nullptr);
+  } else {
+    return std::make_shared<ExternalCommand>(cmd_s, background_flag);
+  }
 
   return nullptr;
 }
 
 void SmallShell::executeCommand(const char *cmd_line) {
   auto command = CreateCommand(cmd_line);
-  // TODO: remove this.
-  if (!command) {
-    exit(1);
+
+  // Check if builtin or external
+  bool isExternal = dynamic_cast<ExternalCommand *>(command.get()) != nullptr;
+  if (isExternal) {
+    // TODO: fork + execv + pipe + redirect
+    int pid = fork();
+    if (pid == -1) {
+      syscallError("fork");
+      return;
+    }
+
+    if (pid == 0) {
+      // Forked child
+      command->execute(this);
+    } else {
+      // Parent
+      wait(nullptr);
+    }
+
+  } else {
+    command->execute(this);
   }
-
-  command->execute(this);
-
-  // TODO: fork when using external commands
 }
 
 void SmallShell::syscallError(const std::string &syscall) {
@@ -153,9 +168,10 @@ void SmallShell::syscallError(const std::string &syscall) {
   perror(msg.c_str());
 }
 
-Command::Command(const char *cmd_line, bool background_command_flag)
-    : command_line(std::string(cmd_line)), argv(new char *[MAX_ARGV_LENGTH]),
-      argc(_parseCommandLine(cmd_line, argv)), background_command_flag(false) {}
+Command::Command(const std::string &cmd_line, bool background_command_flag)
+    : command_line(cmd_line), argv(new char *[MAX_ARGV_LENGTH]),
+      argc(_parseCommandLine(cmd_line, argv)),
+      background_command_flag(background_command_flag) {}
 
 Command::~Command() {
   for (int i = 0; i < argc; i++) {
@@ -168,7 +184,7 @@ Command::~Command() {
 const std::string Command::getCommandLine() const { return command_line; }
 bool Command::isBackgroundCommand() const { return background_command_flag; }
 
-ChangePromptCommand::ChangePromptCommand(const char *cmd_line)
+ChangePromptCommand::ChangePromptCommand(const std::string &cmd_line)
     : BuiltInCommand(cmd_line) {}
 
 void ChangePromptCommand::execute(SmallShell *smash) {
@@ -179,14 +195,14 @@ void ChangePromptCommand::execute(SmallShell *smash) {
   }
 }
 
-ShowPidCommand::ShowPidCommand(const char *cmd_line)
+ShowPidCommand::ShowPidCommand(const std::string &cmd_line)
     : BuiltInCommand(cmd_line) {}
 
 void ShowPidCommand::execute(SmallShell *smash) {
   std::cout << "smash pid is " << smash->getPid() << std::endl;
 }
 
-GetCurrDirCommand::GetCurrDirCommand(const char *cmd_line)
+GetCurrDirCommand::GetCurrDirCommand(const std::string &cmd_line)
     : BuiltInCommand(cmd_line) {}
 
 void GetCurrDirCommand::execute(SmallShell *smash) {
@@ -198,7 +214,7 @@ void GetCurrDirCommand::execute(SmallShell *smash) {
   }
 }
 
-ChangeDirCommand::ChangeDirCommand(const char *cmd_line)
+ChangeDirCommand::ChangeDirCommand(const std::string &cmd_line)
     : BuiltInCommand(cmd_line) {}
 
 void ChangeDirCommand::execute(SmallShell *smash) {
@@ -247,7 +263,7 @@ void ChangeDirCommand::execute(SmallShell *smash) {
   smash->setLastDir(cwd);
 }
 
-QuitCommand::QuitCommand(const char *cmd_line, JobsList *jobs)
+QuitCommand::QuitCommand(const std::string &cmd_line, JobsList *jobs)
     : BuiltInCommand(cmd_line) {}
 
 void QuitCommand::execute(SmallShell *smash) {
@@ -256,4 +272,20 @@ void QuitCommand::execute(SmallShell *smash) {
     smash->killAllJobs();
   }
   // kill the jobs
+}
+
+ExternalCommand::ExternalCommand(const std::string &cmd_line,
+                                 bool background_command_flag)
+    : Command(cmd_line, background_command_flag) {}
+
+void ExternalCommand::execute(SmallShell *smash) {
+  // First change group ID to prevent shell signals from being received.
+  if (setpgrp() != 0) {
+    smash->syscallError("setpgrp");
+  }
+
+  if (execv(argv[0], argv) != 0) {
+    smash->syscallError("execv");
+    exit(1);
+  };
 }

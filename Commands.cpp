@@ -75,7 +75,8 @@ void _removeBackgroundSign(char *cmd_line) {
 // Not finished
 SmallShell::SmallShell()
     : smash_pid(getpid()), current_display_prompt("smash"),
-      last_dir_ptr(nullptr), default_display_prompt("smash") {}
+      last_dir_ptr(nullptr), default_display_prompt("smash"), is_working(true) {
+}
 
 // TODO: add your implementation
 
@@ -94,7 +95,10 @@ const pid_t SmallShell::getPid() const { return smash_pid; }
 std::string SmallShell::getDisplayPrompt() const {
   return current_display_prompt;
 }
-
+bool SmallShell::isSmashWorking() const { return is_working; }
+void SmallShell::disableSmash() { is_working = false; }
+void SmallShell::killAllJobs() { // TODO: Implement killing all jobs}
+}
 /**
  * Creates and returns a pointer to Command class which matches the given
  * command line (cmd_line)
@@ -112,6 +116,8 @@ std::shared_ptr<Command> SmallShell::CreateCommand(const char *cmd_line) {
     return std::make_shared<ShowPidCommand>(cmd_line);
   } else if (firstWord.compare("pwd") == 0) {
     return std::make_shared<GetCurrDirCommand>(cmd_line);
+  } else if (firstWord.compare("quit") == 0) {
+    return std::make_shared<QuitCommand>(cmd_line, nullptr);
   }
   /*if (firstWord.compare("pwd") == 0) {
     return new GetCurrDirCommand(cmd_line);
@@ -149,7 +155,7 @@ Command::Command(const char *cmd_line, bool background_command_flag)
 
 Command::~Command() {
   for (int i = 0; i < argc; i++) {
-    free(argv[i]);
+    delete argv[i];
     argv[i] = NULL;
   }
   delete[] argv;
@@ -186,4 +192,15 @@ void GetCurrDirCommand::execute(SmallShell *smash) {
   } else {
     smash->syscallError("getcwd");
   }
+}
+
+QuitCommand::QuitCommand(const char *cmd_line, JobsList *jobs)
+    : BuiltInCommand(cmd_line) {}
+
+void QuitCommand::execute(SmallShell *smash) {
+  smash->disableSmash();
+  if (argc >= 2 && std::string(argv[1]).compare("kill") == 0) {
+    smash->killAllJobs();
+  }
+  // kill the jobs
 }

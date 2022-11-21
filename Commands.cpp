@@ -70,7 +70,11 @@ void _removeBackgroundSign(char *cmd_line) {
   cmd_line[str.find_last_not_of(WHITESPACE, idx) + 1] = 0;
 }
 
-// TODO: Add your implementation for classes in Commands.h
+static void syscallError(const std::string &syscall) {
+  std::string msg =
+      std::string("smash error: " + syscall + std::string(" failed"));
+  perror(msg.c_str());
+}
 
 // Not finished
 SmallShell::SmallShell()
@@ -102,6 +106,14 @@ void SmallShell::killAllJobs() {
   // TODO: Implement killing all jobs
 }
 
+void SmallShell::stopCurrentCommand() {
+  if (current_command_pid == -1) {
+    return;
+  }
+
+  kill(current_command_pid, SIGSTOP);
+}
+
 /**
  * Creates and returns a pointer to Command class which matches the given
  * command line (cmd_line)
@@ -120,29 +132,31 @@ SmallShell::CreateCommand(const std::string &cmd_line) {
   /* check if special command I.E pipe*/
 
   if (firstWord.compare("chprompt") == 0) {
-    return std::make_shared<ChangePromptCommand>(cmd_s);
+    return std::make_shared<ChangePromptCommand>(cmd_line);
   } else if (firstWord.compare("showpid") == 0) {
-    return std::make_shared<ShowPidCommand>(cmd_s);
+    return std::make_shared<ShowPidCommand>(cmd_line);
   } else if (firstWord.compare("pwd") == 0) {
-    return std::make_shared<GetCurrDirCommand>(cmd_s);
+    return std::make_shared<GetCurrDirCommand>(cmd_line);
   } else if (firstWord.compare("cd") == 0) {
-    return std::make_shared<ChangeDirCommand>(cmd_s);
+    return std::make_shared<ChangeDirCommand>(cmd_line);
   } else if (firstWord.compare("quit") == 0) {
-    return std::make_shared<QuitCommand>(cmd_s, nullptr);
+    return std::make_shared<QuitCommand>(cmd_line);
   } else {
-    return std::make_shared<ExternalCommand>(cmd_s, background_flag);
+    return std::make_shared<ExternalCommand>(cmd_line, background_flag);
   }
 
   return nullptr;
 }
 
 void SmallShell::executeCommand(const char *cmd_line) {
+  jobs.removeFinishedJobs();
+
   auto command = CreateCommand(cmd_line);
 
   // Check if builtin or external
   bool isExternal = dynamic_cast<ExternalCommand *>(command.get()) != nullptr;
   if (isExternal) {
-    // TODO: fork + execv + pipe + redirect
+    // TODO: pipe + redirect
     int pid = fork();
     if (pid == -1) {
       syscallError("fork");
@@ -154,18 +168,24 @@ void SmallShell::executeCommand(const char *cmd_line) {
       command->execute(this);
     } else {
       // Parent
-      wait(nullptr);
+      if (command->isBackgroundCommand()) {
+        jobs.addJob(command, pid, false);
+      } else {
+        current_command_pid = pid;
+
+        int waitStatus;
+        waitpid(pid, &waitStatus, WUNTRACED);
+
+        if (WIFSTOPPED(waitStatus)) {
+          jobs.addJob(command, pid, true);
+          std::cout << "smash: process " << pid << " was stopped" << std::endl;
+        }
+      }
     }
 
   } else {
     command->execute(this);
   }
-}
-
-void SmallShell::syscallError(const std::string &syscall) {
-  std::string msg =
-      std::string("smash error: " + syscall + std::string(" failed"));
-  perror(msg.c_str());
 }
 
 Command::Command(const std::string &cmd_line, bool background_command_flag)
@@ -210,7 +230,7 @@ void GetCurrDirCommand::execute(SmallShell *smash) {
   if (getcwd(cwd, sizeof(cwd)) != NULL) {
     std::cout << cwd << std::endl;
   } else {
-    smash->syscallError("getcwd");
+    syscallError("getcwd");
   }
 }
 
@@ -225,12 +245,12 @@ void ChangeDirCommand::execute(SmallShell *smash) {
 
   char cwd[PATH_MAX];
   if (getcwd(cwd, sizeof(cwd)) == NULL) {
-    smash->syscallError("getcwd");
+    syscallError("getcwd");
   }
 
   if (argc == 1) {
     if (chdir(getenv("HOME")) != 0) {
-      smash->syscallError("chdir");
+      syscallError("chdir");
       return;
     }
   } else {
@@ -245,7 +265,7 @@ void ChangeDirCommand::execute(SmallShell *smash) {
         return;
       } else {
         if (chdir(lastDir.c_str()) != 0) {
-          smash->syscallError("chdir");
+          syscallError("chdir");
           return;
         }
       }
@@ -254,7 +274,7 @@ void ChangeDirCommand::execute(SmallShell *smash) {
     // Handle general cd.
     else {
       if (chdir(target) != 0) {
-        smash->syscallError("chdir");
+        syscallError("chdir");
         return;
       }
     }
@@ -263,7 +283,7 @@ void ChangeDirCommand::execute(SmallShell *smash) {
   smash->setLastDir(cwd);
 }
 
-QuitCommand::QuitCommand(const std::string &cmd_line, JobsList *jobs)
+QuitCommand::QuitCommand(const std::string &cmd_line)
     : BuiltInCommand(cmd_line) {}
 
 void QuitCommand::execute(SmallShell *smash) {
@@ -281,11 +301,136 @@ ExternalCommand::ExternalCommand(const std::string &cmd_line,
 void ExternalCommand::execute(SmallShell *smash) {
   // First change group ID to prevent shell signals from being received.
   if (setpgrp() != 0) {
-    smash->syscallError("setpgrp");
+    syscallError("setpgrp");
   }
 
   if (execv(argv[0], argv) != 0) {
-    smash->syscallError("execv");
+    syscallError("execv");
     exit(1);
   };
+}
+
+// class JobsList {
+std::ostream &operator<<(std::ostream &os, const JobsList::JobEntry &job) {
+  auto now = time(nullptr);
+  int delta = (int)difftime(now, job.startTime);
+
+  os << "[" << job.id << "] " << job.command->getCommandLine() << " : "
+     << job.pid << " " << delta << " secs"
+     << (job.state == JobsList::JobState::Stopped ? " (stopped" : "");
+
+  return os;
+}
+
+void JobsList::addJob(std::shared_ptr<Command> cmd, pid_t pid, bool isStopped) {
+  removeFinishedJobs();
+  jobs.push_back(std::make_shared<JobEntry>(cmd, getFreeID(), pid,
+                                            isStopped ? JobState::Stopped
+                                                      : JobState::Running));
+}
+
+void JobsList::printJobsList() {
+  // TODO: mask alarm signal when travesing joblist.
+  removeFinishedJobs();
+
+  for (auto &&job : jobs) {
+    std::cout << job << std::endl;
+  }
+}
+
+void JobsList::killAllJobs() {
+  // TODO: mask alarm signal when travesing joblist.
+
+  for (auto &&job : jobs) {
+    if (kill(job->pid, SIGKILL) == -1) {
+      syscallError("kill");
+    }
+    if (waitpid(job->pid, nullptr, 0) == -1) {
+      syscallError("waitpid");
+    }
+  }
+  jobs.clear();
+}
+
+void JobsList::removeFinishedJobs() {
+  // TODO: mask alarm signal when travesing joblist.
+
+  auto it = jobs.begin();
+  while (it != jobs.end()) {
+    auto job = *it;
+
+    int waitStatus;
+    if (waitpid(job->pid, &waitStatus, WNOHANG) == -1) {
+      syscallError("waitpid");
+    }
+
+    if (WIFEXITED(waitStatus)) {
+      auto current = it++;
+      jobs.erase(current);
+    } else {
+      ++it;
+    }
+  }
+}
+
+JobsList::JobEntry *JobsList::getJobById(int jobId) {
+  // TODO: mask alarm signal when travesing joblist.
+  for (auto &&job : jobs) {
+    if (job->id == jobId) {
+      return job.get();
+    }
+  }
+
+  return nullptr;
+}
+
+void JobsList::removeJobById(int jobId) {
+  // TODO: mask alarm signal when travesing joblist.
+  auto it = jobs.begin();
+  while (it != jobs.end() && (*it)->id != jobId) {
+    ++it;
+  }
+
+  if (it != jobs.end()) {
+    jobs.erase(it);
+  }
+}
+
+JobsList::JobEntry *JobsList::getLastJob(int *lastJobId) {
+  // TODO: mask alarm signal when travesing joblist.
+
+  if (jobs.empty()) {
+    return nullptr;
+  }
+
+  auto lastJob = jobs.back();
+  *lastJobId = lastJob->id;
+  return lastJob.get();
+}
+
+JobsList::JobEntry *JobsList::getLastStoppedJob(int *jobId) {
+  // TODO: mask alarm signal when travesing joblist.
+
+  auto it = jobs.rbegin();
+  while (it != jobs.rend() && (*it)->state != JobState::Stopped) {
+    ++it;
+  }
+
+  if (it == jobs.rend()) {
+    return nullptr;
+  }
+
+  *jobId = (*it)->id;
+  return it->get();
+}
+
+int JobsList::getFreeID() const {
+  // TODO: mask alarm signal when travesing joblist.
+  int maxID = -1;
+
+  for (auto &&job : jobs) {
+    maxID = std::max(maxID, job->id);
+  }
+
+  return maxID + 1;
 }

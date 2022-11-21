@@ -1,6 +1,7 @@
 #ifndef SMASH_COMMAND_H_
 #define SMASH_COMMAND_H_
 
+#include <list>
 #include <memory>
 #include <string>
 #include <vector>
@@ -94,22 +95,32 @@ class JobsList;
 class QuitCommand : public BuiltInCommand {
   // TODO: Add your data members
 public:
-  QuitCommand(const std::string &cmd_line, JobsList *jobs);
+  QuitCommand(const std::string &cmd_line);
   virtual ~QuitCommand() {}
   void execute(SmallShell *smash) override;
 };
 
 class JobsList {
 public:
-  int id;
-  class JobEntry {
-    // TODO: Add your data members
+  enum class JobState { Running, Stopped };
+  struct JobEntry {
+    JobEntry(std::shared_ptr<Command> command, int id, pid_t pid,
+             JobState state)
+        : command(command), id(id), pid(pid), state(state) {
+      startTime = time(nullptr);
+    }
+
+    std::shared_ptr<Command> command;
+    int id;
+    pid_t pid;
+    JobState state;
+    time_t startTime;
+
+    friend std::ostream &operator<<(std::ostream &os, const JobEntry &job);
   };
-  // TODO: Add your data members
+
 public:
-  JobsList();
-  ~JobsList();
-  void addJob(Command *cmd, bool isStopped = false);
+  void addJob(std::shared_ptr<Command> cmd, pid_t pid, bool isStopped);
   void printJobsList();
   void killAllJobs();
   void removeFinishedJobs();
@@ -118,6 +129,10 @@ public:
   JobEntry *getLastJob(int *lastJobId);
   JobEntry *getLastStoppedJob(int *jobId);
   // TODO: Add extra methods or modify exisitng ones as needed
+
+private:
+  int getFreeID() const;
+  std::list<std::shared_ptr<JobEntry>> jobs;
 };
 
 class JobsCommand : public BuiltInCommand {
@@ -187,11 +202,9 @@ private:
   std::string current_display_prompt;
   std::string last_dir;
   bool is_working;
+  JobsList jobs;
+  pid_t current_command_pid = -1;
 
-  /*
-  add more data members
-  */
-  // TODO: Add your data members
   SmallShell();
 
 public:
@@ -213,10 +226,11 @@ public:
   std::string getDisplayPrompt() const;
   const std::string &getLastDir() const;
 
-  void syscallError(const std::string &syscall);
   bool isSmashWorking() const;
   void disableSmash();
   void killAllJobs();
+
+  void stopCurrentCommand();
 };
 
 #endif // SMASH_COMMAND_H_

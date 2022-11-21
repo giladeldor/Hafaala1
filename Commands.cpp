@@ -102,9 +102,9 @@ std::string SmallShell::getDisplayPrompt() const {
 }
 bool SmallShell::isSmashWorking() const { return is_working; }
 void SmallShell::disableSmash() { is_working = false; }
-void SmallShell::killAllJobs() {
-  // TODO: Implement killing all jobs
-}
+void SmallShell::killAllJobs() { jobs.killAllJobs(); }
+JobsList *SmallShell::getJobList() { return &jobs; }
+pid_t SmallShell::getCurrnetCommandPid() const { return current_command_pid; }
 
 void SmallShell::stopCurrentCommand() {
   if (current_command_pid == -1) {
@@ -141,6 +141,8 @@ SmallShell::CreateCommand(const std::string &cmd_line) {
     return std::make_shared<ChangeDirCommand>(cmd_line);
   } else if (firstWord.compare("quit") == 0) {
     return std::make_shared<QuitCommand>(cmd_line);
+  } else if (firstWord.compare("jobs") == 0) {
+    return std::make_shared<JobsCommand>(cmd_line, &jobs);
   } else if (firstWord.compare("fg") == 0) {
     return std::make_shared<ForegroundCommand>(cmd_line);
   } else {
@@ -189,8 +191,6 @@ void SmallShell::executeCommand(const char *cmd_line) {
     command->execute(this);
   }
 }
-
-JobsList *SmallShell::getJobsList() { return &jobs; }
 
 Command::Command(const std::string &cmd_line, bool background_command_flag)
     : command_line(cmd_line), argv(new char *[MAX_ARGV_LENGTH]),
@@ -287,6 +287,12 @@ void ChangeDirCommand::execute(SmallShell *smash) {
   smash->setLastDir(cwd);
 }
 
+JobsCommand::JobsCommand(const std::string &cmd_line, JobsList *jobs)
+    : BuiltInCommand(cmd_line) {}
+void JobsCommand::execute(SmallShell *smash) {
+  smash->getJobList()->printJobsList();
+}
+
 QuitCommand::QuitCommand(const std::string &cmd_line)
     : BuiltInCommand(cmd_line) {}
 
@@ -304,7 +310,7 @@ ForegroundCommand::ForegroundCommand(const std::string &cmd_line)
 void ForegroundCommand::execute(SmallShell *smash) {
   JobsList::JobEntry *job;
   if (argc == 1) {
-    job = smash->getJobsList()->getLastJob();
+    job = smash->getJobList()->getLastJob();
 
     if (!job) {
       std::cerr << "smash error: fg: jobs list is empty" << std::endl;
@@ -313,7 +319,7 @@ void ForegroundCommand::execute(SmallShell *smash) {
   } else if (argc == 2) {
     try {
       int id = std::stoi(argv[1]);
-      job = smash->getJobsList()->getJobById(id);
+      job = smash->getJobList()->getJobById(id);
 
       if (!job) {
         std::cerr << "smash error: fg: job-id " << id << " does not exist"
@@ -339,7 +345,7 @@ void ForegroundCommand::execute(SmallShell *smash) {
     syscallError("waitpid");
   }
 
-  smash->getJobsList()->removeJobById(job->id);
+  smash->getJobList()->removeJobById(job->id);
 }
 
 ExternalCommand::ExternalCommand(const std::string &cmd_line,
@@ -382,7 +388,7 @@ void JobsList::printJobsList() {
   removeFinishedJobs();
 
   for (auto &&job : jobs) {
-    std::cout << job << std::endl;
+    std::cout << (*job) << std::endl;
   }
 }
 

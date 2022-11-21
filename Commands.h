@@ -231,6 +231,8 @@ public:
   void killAllJobs();
 
   void stopCurrentCommand();
+  JobsList getJobList() const;
+  pid_t getCurrnetCommandPid() const;
 };
 
 #endif // SMASH_COMMAND_H_

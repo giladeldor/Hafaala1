@@ -103,7 +103,7 @@ std::string SmallShell::getDisplayPrompt() const {
 bool SmallShell::isSmashWorking() const { return is_working; }
 void SmallShell::disableSmash() { is_working = false; }
 void SmallShell::killAllJobs() { jobs.killAllJobs(); }
-JobsList SmallShell::getJobList() const { return jobs; }
+JobsList *SmallShell::getJobList() { return &jobs; }
 pid_t SmallShell::getCurrnetCommandPid() const { return current_command_pid; }
 
 void SmallShell::stopCurrentCommand() {
@@ -132,19 +132,21 @@ SmallShell::CreateCommand(const std::string &cmd_line) {
   /* check if special command I.E pipe*/
 
   if (firstWord.compare("chprompt") == 0) {
-    return std::make_shared<ChangePromptCommand>(cmd_line);
+    return std::make_shared<ChangePromptCommand>(cmd_line, cmd_s);
   } else if (firstWord.compare("showpid") == 0) {
-    return std::make_shared<ShowPidCommand>(cmd_line);
+    return std::make_shared<ShowPidCommand>(cmd_line, cmd_s);
   } else if (firstWord.compare("pwd") == 0) {
-    return std::make_shared<GetCurrDirCommand>(cmd_line);
+    return std::make_shared<GetCurrDirCommand>(cmd_line, cmd_s);
   } else if (firstWord.compare("cd") == 0) {
-    return std::make_shared<ChangeDirCommand>(cmd_line);
+    return std::make_shared<ChangeDirCommand>(cmd_line, cmd_s);
   } else if (firstWord.compare("quit") == 0) {
-    return std::make_shared<QuitCommand>(cmd_line);
+    return std::make_shared<QuitCommand>(cmd_line, cmd_s);
   } else if (firstWord.compare("jobs") == 0) {
-    return std::make_shared<JobsCommand>(cmd_line, &jobs);
+    return std::make_shared<JobsCommand>(cmd_line, cmd_s);
+  } else if (firstWord.compare("fg") == 0) {
+    return std::make_shared<ForegroundCommand>(cmd_line, cmd_s);
   } else {
-    return std::make_shared<ExternalCommand>(cmd_line, background_flag);
+    return std::make_shared<ExternalCommand>(cmd_line, cmd_s, background_flag);
   }
 
   return nullptr;
@@ -190,9 +192,11 @@ void SmallShell::executeCommand(const char *cmd_line) {
   }
 }
 
-Command::Command(const std::string &cmd_line, bool background_command_flag)
+Command::Command(const std::string &cmd_line,
+                 const std::string &cmd_line_stripped,
+                 bool background_command_flag)
     : command_line(cmd_line), argv(new char *[MAX_ARGV_LENGTH]),
-      argc(_parseCommandLine(cmd_line, argv)),
+      argc(_parseCommandLine(cmd_line_stripped, argv)),
       background_command_flag(background_command_flag) {}
 
 Command::~Command() {
@@ -206,8 +210,9 @@ Command::~Command() {
 const std::string Command::getCommandLine() const { return command_line; }
 bool Command::isBackgroundCommand() const { return background_command_flag; }
 
-ChangePromptCommand::ChangePromptCommand(const std::string &cmd_line)
-    : BuiltInCommand(cmd_line) {}
+ChangePromptCommand::ChangePromptCommand(const std::string &cmd_line,
+                                         const std::string &cmd_line_stripped)
+    : BuiltInCommand(cmd_line, cmd_line_stripped) {}
 
 void ChangePromptCommand::execute(SmallShell *smash) {
   if (argc == 1) {
@@ -217,15 +222,17 @@ void ChangePromptCommand::execute(SmallShell *smash) {
   }
 }
 
-ShowPidCommand::ShowPidCommand(const std::string &cmd_line)
-    : BuiltInCommand(cmd_line) {}
+ShowPidCommand::ShowPidCommand(const std::string &cmd_line,
+                               const std::string &cmd_line_stripped)
+    : BuiltInCommand(cmd_line, cmd_line_stripped) {}
 
 void ShowPidCommand::execute(SmallShell *smash) {
   std::cout << "smash pid is " << smash->getPid() << std::endl;
 }
 
-GetCurrDirCommand::GetCurrDirCommand(const std::string &cmd_line)
-    : BuiltInCommand(cmd_line) {}
+GetCurrDirCommand::GetCurrDirCommand(const std::string &cmd_line,
+                                     const std::string &cmd_line_stripped)
+    : BuiltInCommand(cmd_line, cmd_line_stripped) {}
 
 void GetCurrDirCommand::execute(SmallShell *smash) {
   char cwd[PATH_MAX];
@@ -236,8 +243,9 @@ void GetCurrDirCommand::execute(SmallShell *smash) {
   }
 }
 
-ChangeDirCommand::ChangeDirCommand(const std::string &cmd_line)
-    : BuiltInCommand(cmd_line) {}
+ChangeDirCommand::ChangeDirCommand(const std::string &cmd_line,
+                                   const std::string &cmd_line_stripped)
+    : BuiltInCommand(cmd_line, cmd_line_stripped) {}
 
 void ChangeDirCommand::execute(SmallShell *smash) {
   if (argc > 2) {
@@ -285,14 +293,16 @@ void ChangeDirCommand::execute(SmallShell *smash) {
   smash->setLastDir(cwd);
 }
 
-JobsCommand::JobsCommand(const std::string &cmd_line, JobsList *jobs)
-    : BuiltInCommand(cmd_line) {}
+JobsCommand::JobsCommand(const std::string &cmd_line,
+                         const std::string &cmd_line_stripped)
+    : BuiltInCommand(cmd_line, cmd_line_stripped) {}
 void JobsCommand::execute(SmallShell *smash) {
-  smash->getJobList().printJobsList();
+  smash->getJobList()->printJobsList();
 }
 
-QuitCommand::QuitCommand(const std::string &cmd_line)
-    : BuiltInCommand(cmd_line) {}
+QuitCommand::QuitCommand(const std::string &cmd_line,
+                         const std::string &cmd_line_stripped)
+    : BuiltInCommand(cmd_line, cmd_line_stripped) {}
 
 void QuitCommand::execute(SmallShell *smash) {
   smash->disableSmash();
@@ -302,9 +312,55 @@ void QuitCommand::execute(SmallShell *smash) {
   // kill the jobs
 }
 
+ForegroundCommand::ForegroundCommand(const std::string &cmd_line,
+                                     const std::string &cmd_line_stripped)
+    : BuiltInCommand(cmd_line, cmd_line_stripped) {}
+
+void ForegroundCommand::execute(SmallShell *smash) {
+  JobsList::JobEntry *job;
+  if (argc == 1) {
+    job = smash->getJobList()->getLastJob();
+
+    if (!job) {
+      std::cerr << "smash error: fg: jobs list is empty" << std::endl;
+      return;
+    }
+  } else if (argc == 2) {
+    try {
+      int id = std::stoi(argv[1]);
+      job = smash->getJobList()->getJobById(id);
+
+      if (!job) {
+        std::cerr << "smash error: fg: job-id " << id << " does not exist"
+                  << std::endl;
+        return;
+      }
+    } catch (const std::exception &e) {
+      std::cerr << "smash error: fg: invalid arguments" << std::endl;
+      return;
+    }
+  } else {
+    std::cerr << "smash error: fg: invalid arguments" << std::endl;
+    return;
+  }
+
+  job->state = JobsList::JobState::Running;
+  std::cout << *job << std::endl;
+
+  if (kill(job->pid, SIGCONT) == -1) {
+    syscallError("kill");
+  }
+  if (waitpid(job->pid, nullptr, 0) == -1) {
+    syscallError("waitpid");
+  }
+
+  smash->getJobList()->removeJobById(job->id);
+}
+
 ExternalCommand::ExternalCommand(const std::string &cmd_line,
+                                 const std::string &cmd_line_stripped,
                                  bool background_command_flag)
-    : Command(cmd_line, background_command_flag) {}
+    : Command(cmd_line, cmd_line_stripped, background_command_flag) {}
 
 void ExternalCommand::execute(SmallShell *smash) {
   // First change group ID to prevent shell signals from being received.
@@ -325,7 +381,7 @@ std::ostream &operator<<(std::ostream &os, const JobsList::JobEntry &job) {
 
   os << "[" << job.id << "] " << job.command->getCommandLine() << " : "
      << job.pid << " " << delta << " secs"
-     << (job.state == JobsList::JobState::Stopped ? " (stopped" : "");
+     << (job.state == JobsList::JobState::Stopped ? " (stopped)" : "");
 
   return os;
 }
@@ -404,7 +460,7 @@ void JobsList::removeJobById(int jobId) {
   }
 }
 
-JobsList::JobEntry *JobsList::getLastJob(int *lastJobId) {
+JobsList::JobEntry *JobsList::getLastJob() {
   // TODO: mask alarm signal when travesing joblist.
 
   if (jobs.empty()) {
@@ -412,11 +468,10 @@ JobsList::JobEntry *JobsList::getLastJob(int *lastJobId) {
   }
 
   auto lastJob = jobs.back();
-  *lastJobId = lastJob->id;
   return lastJob.get();
 }
 
-JobsList::JobEntry *JobsList::getLastStoppedJob(int *jobId) {
+JobsList::JobEntry *JobsList::getLastStoppedJob() {
   // TODO: mask alarm signal when travesing joblist.
 
   auto it = jobs.rbegin();
@@ -428,17 +483,15 @@ JobsList::JobEntry *JobsList::getLastStoppedJob(int *jobId) {
     return nullptr;
   }
 
-  *jobId = (*it)->id;
   return it->get();
 }
 
 int JobsList::getFreeID() const {
   // TODO: mask alarm signal when travesing joblist.
-  int maxID = -1;
 
-  for (auto &&job : jobs) {
-    maxID = std::max(maxID, job->id);
+  if (jobs.empty()) {
+    return 0;
   }
 
-  return maxID + 1;
+  return jobs.back()->id + 1;
 }

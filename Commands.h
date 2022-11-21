@@ -20,7 +20,8 @@ protected:
   bool background_command_flag;
   // TODO: Add your data members
 public:
-  Command(const std::string &cmd_line, bool background_command_flag);
+  Command(const std::string &cmd_line, const std::string &cmd_line_stripped,
+          bool background_command_flag);
   virtual ~Command();
   virtual void execute(SmallShell *smash) = 0;
   const std::string getCommandLine() const;
@@ -32,20 +33,25 @@ public:
 
 class BuiltInCommand : public Command {
 public:
-  BuiltInCommand(const std::string &cmd_line) : Command(cmd_line, false) {}
+  BuiltInCommand(const std::string &cmd_line,
+                 const std::string &cmd_line_stripped)
+      : Command(cmd_line, cmd_line_stripped, false) {}
   virtual ~BuiltInCommand() {}
 };
 
 class ChangePromptCommand : public BuiltInCommand {
 public:
-  ChangePromptCommand(const std::string &cmd_line);
+  ChangePromptCommand(const std::string &cmd_line,
+                      const std::string &cmd_line_stripped);
   virtual ~ChangePromptCommand() {}
   void execute(SmallShell *smash) override;
 };
 
 class ExternalCommand : public Command {
 public:
-  ExternalCommand(const std::string &cmd_line, bool background_command_flag);
+  ExternalCommand(const std::string &cmd_line,
+                  const std::string &cmd_line_stripped,
+                  bool background_command_flag);
   virtual ~ExternalCommand() {}
   void execute(SmallShell *smash) override;
 };
@@ -53,7 +59,8 @@ public:
 class PipeCommand : public Command {
   // TODO: Add your data members
 public:
-  PipeCommand(const std::string &cmd_line);
+  PipeCommand(const std::string &cmd_line,
+              const std::string &cmd_line_stripped);
   virtual ~PipeCommand() {}
   void execute(SmallShell *smash) override;
 };
@@ -61,7 +68,8 @@ public:
 class RedirectionCommand : public Command {
   // TODO: Add your data members
 public:
-  explicit RedirectionCommand(const std::string &cmd_line);
+  explicit RedirectionCommand(const std::string &cmd_line,
+                              const std::string &cmd_line_stripped);
   virtual ~RedirectionCommand() {}
   void execute(SmallShell *smash) override;
   // void prepare() override;
@@ -70,7 +78,8 @@ public:
 
 class ChangeDirCommand : public BuiltInCommand {
 public:
-  ChangeDirCommand(const std::string &cmd_line);
+  ChangeDirCommand(const std::string &cmd_line,
+                   const std::string &cmd_line_stripped);
 
   virtual ~ChangeDirCommand() {}
 
@@ -79,14 +88,16 @@ public:
 
 class GetCurrDirCommand : public BuiltInCommand {
 public:
-  GetCurrDirCommand(const std::string &cmd_line);
+  GetCurrDirCommand(const std::string &cmd_line,
+                    const std::string &cmd_line_stripped);
   virtual ~GetCurrDirCommand() {}
   void execute(SmallShell *smash) override;
 };
 
 class ShowPidCommand : public BuiltInCommand {
 public:
-  ShowPidCommand(const std::string &cmd_line);
+  ShowPidCommand(const std::string &cmd_line,
+                 const std::string &cmd_line_stripped);
   virtual ~ShowPidCommand() {}
   void execute(SmallShell *smash) override;
 };
@@ -95,7 +106,8 @@ class JobsList;
 class QuitCommand : public BuiltInCommand {
   // TODO: Add your data members
 public:
-  QuitCommand(const std::string &cmd_line);
+  QuitCommand(const std::string &cmd_line,
+              const std::string &cmd_line_stripped);
   virtual ~QuitCommand() {}
   void execute(SmallShell *smash) override;
 };
@@ -126,8 +138,8 @@ public:
   void removeFinishedJobs();
   JobEntry *getJobById(int jobId);
   void removeJobById(int jobId);
-  JobEntry *getLastJob(int *lastJobId);
-  JobEntry *getLastStoppedJob(int *jobId);
+  JobEntry *getLastJob();
+  JobEntry *getLastStoppedJob();
   // TODO: Add extra methods or modify exisitng ones as needed
 
 private:
@@ -138,7 +150,8 @@ private:
 class JobsCommand : public BuiltInCommand {
   // TODO: Add your data members
 public:
-  JobsCommand(const std::string &cmd_line, JobsList *jobs);
+  JobsCommand(const std::string &cmd_line,
+              const std::string &cmd_line_stripped);
   virtual ~JobsCommand() {}
   void execute(SmallShell *smash) override;
 };
@@ -146,7 +159,8 @@ public:
 class ForegroundCommand : public BuiltInCommand {
   // TODO: Add your data members
 public:
-  ForegroundCommand(const std::string &cmd_line, JobsList *jobs);
+  ForegroundCommand(const std::string &cmd_line,
+                    const std::string &cmd_line_stripped);
   virtual ~ForegroundCommand() {}
   void execute(SmallShell *smash) override;
 };
@@ -231,7 +245,7 @@ public:
   void killAllJobs();
 
   void stopCurrentCommand();
-  JobsList getJobList() const;
+  JobsList *getJobList();
   pid_t getCurrnetCommandPid() const;
 };
 

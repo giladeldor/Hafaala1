@@ -126,8 +126,8 @@ public:
   void removeFinishedJobs();
   JobEntry *getJobById(int jobId);
   void removeJobById(int jobId);
-  JobEntry *getLastJob(int *lastJobId);
-  JobEntry *getLastStoppedJob(int *jobId);
+  JobEntry *getLastJob();
+  JobEntry *getLastStoppedJob();
   // TODO: Add extra methods or modify exisitng ones as needed
 
 private:
@@ -146,7 +146,7 @@ public:
 class ForegroundCommand : public BuiltInCommand {
   // TODO: Add your data members
 public:
-  ForegroundCommand(const std::string &cmd_line, JobsList *jobs);
+  ForegroundCommand(const std::string &cmd_line);
   virtual ~ForegroundCommand() {}
   void execute(SmallShell *smash) override;
 };
@@ -231,6 +231,7 @@ public:
   void killAllJobs();
 
   void stopCurrentCommand();
+  JobsList *getJobsList();
 };
 
 #endif // SMASH_COMMAND_H_

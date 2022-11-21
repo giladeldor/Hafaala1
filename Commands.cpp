@@ -141,6 +141,8 @@ SmallShell::CreateCommand(const std::string &cmd_line) {
     return std::make_shared<ChangeDirCommand>(cmd_line);
   } else if (firstWord.compare("quit") == 0) {
     return std::make_shared<QuitCommand>(cmd_line);
+  } else if (firstWord.compare("fg") == 0) {
+    return std::make_shared<ForegroundCommand>(cmd_line);
   } else {
     return std::make_shared<ExternalCommand>(cmd_line, background_flag);
   }
@@ -187,6 +189,8 @@ void SmallShell::executeCommand(const char *cmd_line) {
     command->execute(this);
   }
 }
+
+JobsList *SmallShell::getJobsList() { return &jobs; }
 
 Command::Command(const std::string &cmd_line, bool background_command_flag)
     : command_line(cmd_line), argv(new char *[MAX_ARGV_LENGTH]),
@@ -294,6 +298,50 @@ void QuitCommand::execute(SmallShell *smash) {
   // kill the jobs
 }
 
+ForegroundCommand::ForegroundCommand(const std::string &cmd_line)
+    : BuiltInCommand(cmd_line) {}
+
+void ForegroundCommand::execute(SmallShell *smash) {
+  JobsList::JobEntry *job;
+  if (argc == 1) {
+    job = smash->getJobsList()->getLastJob();
+
+    if (!job) {
+      std::cerr << "smash error: fg: jobs list is empty" << std::endl;
+      return;
+    }
+  } else if (argc == 2) {
+    try {
+      int id = std::stoi(argv[1]);
+      job = smash->getJobsList()->getJobById(id);
+
+      if (!job) {
+        std::cerr << "smash error: fg: job-id " << id << " does not exist"
+                  << std::endl;
+        return;
+      }
+    } catch (const std::exception &e) {
+      std::cerr << "smash error: fg: invalid arguments" << std::endl;
+      return;
+    }
+  } else {
+    std::cerr << "smash error: fg: invalid arguments" << std::endl;
+    return;
+  }
+
+  job->state = JobsList::JobState::Running;
+  std::cout << *job << std::endl;
+
+  if (kill(job->pid, SIGCONT) == -1) {
+    syscallError("kill");
+  }
+  if (waitpid(job->pid, nullptr, 0) == -1) {
+    syscallError("waitpid");
+  }
+
+  smash->getJobsList()->removeJobById(job->id);
+}
+
 ExternalCommand::ExternalCommand(const std::string &cmd_line,
                                  bool background_command_flag)
     : Command(cmd_line, background_command_flag) {}
@@ -396,7 +444,7 @@ void JobsList::removeJobById(int jobId) {
   }
 }
 
-JobsList::JobEntry *JobsList::getLastJob(int *lastJobId) {
+JobsList::JobEntry *JobsList::getLastJob() {
   // TODO: mask alarm signal when travesing joblist.
 
   if (jobs.empty()) {
@@ -404,11 +452,10 @@ JobsList::JobEntry *JobsList::getLastJob(int *lastJobId) {
   }
 
   auto lastJob = jobs.back();
-  *lastJobId = lastJob->id;
   return lastJob.get();
 }
 
-JobsList::JobEntry *JobsList::getLastStoppedJob(int *jobId) {
+JobsList::JobEntry *JobsList::getLastStoppedJob() {
   // TODO: mask alarm signal when travesing joblist.
 
   auto it = jobs.rbegin();
@@ -420,17 +467,15 @@ JobsList::JobEntry *JobsList::getLastStoppedJob(int *jobId) {
     return nullptr;
   }
 
-  *jobId = (*it)->id;
   return it->get();
 }
 
 int JobsList::getFreeID() const {
   // TODO: mask alarm signal when travesing joblist.
-  int maxID = -1;
 
-  for (auto &&job : jobs) {
-    maxID = std::max(maxID, job->id);
+  if (jobs.empty()) {
+    return 0;
   }
 
-  return maxID + 1;
+  return jobs.back()->id + 1;
 }

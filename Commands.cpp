@@ -21,8 +21,8 @@ const std::string WHITESPACE = " \n\r\t\f\v";
 // Table of Content:
 // Utillities functions ------------------------------------------- Line 30
 // Small Shell Functions ------------------------------------------ Line 90
-// Command Functions ---------------------------------------------- Line 208
-// Joblist Functions ---------------------------------------------- Line 390
+// Command Functions ---------------------------------------------- Line 215
+// Joblist Functions ---------------------------------------------- Line 400
 
 //                                                                      //
 //------------------------- Utility functions --------------------------//

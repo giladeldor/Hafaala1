@@ -245,6 +245,7 @@ public:
   void killAllJobs();
 
   void stopCurrentCommand();
+  void killCurrentCommand();
   JobsList *getJobList();
   pid_t getCurrnetCommandPid() const;
 };

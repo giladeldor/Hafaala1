@@ -18,7 +18,15 @@ const std::string WHITESPACE = " \n\r\t\f\v";
 #define FUNC_ENTRY()
 #define FUNC_EXIT()
 #endif
+// Table of Content:
+// Utillities functions ------------------------------------------- Line 30
+// Small Shell Functions ------------------------------------------ Line 90
+// Command Functions ---------------------------------------------- Line 208
+// Joblist Functions ---------------------------------------------- Line 390
 
+//                                                                      //
+//------------------------- Utility functions --------------------------//
+//                                                                      //
 std::string _ltrim(const std::string &s) {
   size_t start = s.find_first_not_of(WHITESPACE);
   return (start == std::string::npos) ? "" : s.substr(start);
@@ -76,7 +84,9 @@ static void syscallError(const std::string &syscall) {
   perror(msg.c_str());
 }
 
-// Not finished
+//                                                                     //
+//------------------------Small Shell functions------------------------//
+//                                                                     //
 SmallShell::SmallShell()
     : smash_pid(getpid()), current_display_prompt("smash"), last_dir(""),
       default_display_prompt("smash"), is_working(true) {}
@@ -114,6 +124,13 @@ void SmallShell::stopCurrentCommand() {
   kill(current_command_pid, SIGSTOP);
 }
 
+void SmallShell::killCurrentCommand() {
+  if (current_command_pid == -1) {
+    return;
+  }
+
+  kill(current_command_pid, SIGKILL);
+}
 /**
  * Creates and returns a pointer to Command class which matches the given
  * command line (cmd_line)
@@ -192,6 +209,9 @@ void SmallShell::executeCommand(const char *cmd_line) {
   }
 }
 
+//                                                                 //
+//------------------------Command functions------------------------//
+//                                                                 //
 Command::Command(const std::string &cmd_line,
                  const std::string &cmd_line_stripped,
                  bool background_command_flag)
@@ -374,7 +394,9 @@ void ExternalCommand::execute(SmallShell *smash) {
   };
 }
 
-// class JobsList {
+//                                                                 //
+//------------------------JobList functions------------------------//
+//                                                                 //
 std::ostream &operator<<(std::ostream &os, const JobsList::JobEntry &job) {
   auto now = time(nullptr);
   int delta = (int)difftime(now, job.startTime);

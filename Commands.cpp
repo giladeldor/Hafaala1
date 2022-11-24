@@ -446,11 +446,12 @@ void JobsList::removeFinishedJobs() {
     auto job = *it;
 
     int waitStatus;
-    if (waitpid(job->pid, &waitStatus, WNOHANG) == -1) {
+    int res = waitpid(job->pid, &waitStatus, WNOHANG);
+    if (res == -1) {
       syscallError("waitpid");
     }
 
-    if (WIFEXITED(waitStatus)) {
+    if (res > 0 && WIFEXITED(waitStatus)) {
       auto current = it++;
       jobs.erase(current);
     } else {

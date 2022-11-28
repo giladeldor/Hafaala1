@@ -163,6 +163,8 @@ SmallShell::CreateCommand(const std::string &cmd_line) {
     return std::make_shared<JobsCommand>(cmd_line, cmd_s);
   } else if (firstWord.compare("fg") == 0) {
     return std::make_shared<ForegroundCommand>(cmd_line, cmd_s);
+  } else if (firstWord.compare("kill") == 0) {
+    return std::make_shared<KillCommand>(cmd_line, cmd_s);
   } else if (firstWord.compare("bg") == 0) {
     return std::make_shared<BackgroundCommand>(cmd_line, cmd_s);
   } else {
@@ -356,6 +358,9 @@ void ForegroundCommand::execute(SmallShell *smash) {
   } else if (argc == 2) {
     try {
       int id = std::stoi(argv[1]);
+      if (std::to_string(id).length() != (std::string(argv[1]).length())) {
+        throw std::exception();
+      }
       job = smash->getJobList()->getJobById(id);
 
       if (!job) {
@@ -451,7 +456,56 @@ void BackgroundCommand::execute(SmallShell *smash) {
     syscallError("kill");
   }
 }
-
+KillCommand::KillCommand(const std::string &cmd_line,
+                         const std::string &cmd_line_stripped)
+    : BuiltInCommand(cmd_line, cmd_line_stripped) {}
+void KillCommand::execute(SmallShell *smash) {
+  if (argc != 3) {
+    std::cerr << "smash error: kill: invalid arguments" << std::endl;
+    return;
+  }
+  int signum = sigNumParser();
+  if (signum <= 0 || signum > 31) {
+    std::cerr << "smash error: kill: invalid arguments" << std::endl;
+    return;
+  }
+  int jobid = std::stoi(argv[2]);
+  if (std::to_string(jobid).length() != (std::string(argv[2]).length())) {
+    std::cerr << "smash error: kill: invalid arguments" << std::endl;
+    return;
+  }
+  JobsList::JobEntry *job_to_sig = smash->getJobList()->getJobById(jobid);
+  if (!job_to_sig) {
+    std::cerr << "smash error: kill: job-id " << jobid << " does not exist"
+              << std::endl;
+    return;
+  }
+  if (kill(job_to_sig->pid, signum) == -1) {
+    syscallError("kill");
+  }
+  if (signum == SIGCONT) {
+    job_to_sig->state = JobsList::JobState::Running;
+  }
+  if (signum == SIGSTOP) {
+    job_to_sig->state = JobsList::JobState::Stopped;
+  }
+}
+int KillCommand::sigNumParser() const {
+  std::string s = argv[1];
+  if (s[0] != '-') {
+    std::cerr << "smash error: kill: invalid arguments" << std::endl;
+  }
+  s.erase(0, 1);
+  try {
+    int id = std::stoi(s);
+    if (std::to_string(id).length() != (std::string(argv[1]).length() - 1)) {
+      throw std::exception();
+    }
+    return id;
+  } catch (const std::exception &e) {
+    return -1;
+  }
+}
 ExternalCommand::ExternalCommand(const std::string &cmd_line,
                                  const std::string &cmd_line_stripped,
                                  bool background_command_flag)
@@ -522,13 +576,16 @@ void JobsList::removeFinishedJobs() {
 
     int waitStatus;
     int res = waitpid(job->pid, &waitStatus, WNOHANG);
-    if (res == -1) {
-      syscallError("waitpid");
-    }
 
-    if (res > 0 && WIFEXITED(waitStatus)) {
+    if (res == -1 || (res > 0 && WIFEXITED(waitStatus))) {
       auto current = it++;
       jobs.erase(current);
+    } else if (WIFSTOPPED(waitStatus)) {
+      auto current = it++;
+      current->get()->state = JobState::Stopped;
+    } else if (WIFCONTINUED(waitStatus)) {
+      auto current = it++;
+      current->get()->state = JobState::Running;
     } else {
       ++it;
     }

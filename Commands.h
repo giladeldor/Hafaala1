@@ -18,6 +18,7 @@ protected:
   char **argv;
   const int argc;
   bool background_command_flag;
+  time_t startTime;
   // TODO: Add your data members
 public:
   Command(const std::string &cmd_line, const std::string &cmd_line_stripped,
@@ -25,6 +26,7 @@ public:
   virtual ~Command();
   virtual void execute(SmallShell *smash) = 0;
   const std::string getCommandLine() const;
+  const time_t &getStartTime() const;
   bool isBackgroundCommand() const;
   // virtual void prepare();
   // virtual void cleanup();
@@ -118,15 +120,12 @@ public:
   struct JobEntry {
     JobEntry(std::shared_ptr<Command> command, int id, pid_t pid,
              JobState state)
-        : command(command), id(id), pid(pid), state(state) {
-      startTime = time(nullptr);
-    }
+        : command(command), id(id), pid(pid), state(state) {}
 
     std::shared_ptr<Command> command;
     int id;
     pid_t pid;
     JobState state;
-    time_t startTime;
 
     friend std::ostream &operator<<(std::ostream &os, const JobEntry &job);
   };
@@ -166,9 +165,9 @@ public:
 };
 
 class BackgroundCommand : public BuiltInCommand {
-  // TODO: Add your data members
 public:
-  BackgroundCommand(const std::string &cmd_line, JobsList *jobs);
+  BackgroundCommand(const std::string &cmd_line,
+                    const std::string &cmd_line_stripped);
   virtual ~BackgroundCommand() {}
   void execute(SmallShell *smash) override;
 };
@@ -247,7 +246,8 @@ public:
   void stopCurrentCommand();
   void killCurrentCommand();
   JobsList *getJobList();
-  pid_t getCurrnetCommandPid() const;
+  pid_t getCurrentCommandPid() const;
+  void setCurrentCommandPid(pid_t pid);
 };
 
 #endif // SMASH_COMMAND_H_

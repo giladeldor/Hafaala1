@@ -388,8 +388,8 @@ void ExternalCommand::execute(SmallShell *smash) {
     syscallError("setpgrp");
   }
 
-  if (execv(argv[0], argv) != 0) {
-    syscallError("execv");
+  if (execvp(argv[0], argv) != 0) {
+    syscallError("execvp");
     exit(1);
   };
 }

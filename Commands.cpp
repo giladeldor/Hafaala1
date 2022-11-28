@@ -1,10 +1,13 @@
 #include "Commands.h"
+#include <fcntl.h>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <limits.h>
 #include <sstream>
 #include <string.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
 #include <vector>
@@ -223,7 +226,6 @@ void SmallShell::executeCommand(const char *cmd_line) {
     // Check if builtin or external
     bool isExternal = dynamic_cast<ExternalCommand *>(command.get()) != nullptr;
     if (isExternal) {
-      // TODO: pipe + redirect
       int pid = fork();
       if (pid == -1) {
         syscallError("fork");
@@ -265,7 +267,32 @@ void SmallShell::executeCommand(const char *cmd_line) {
 
     bool isExternal = dynamic_cast<ExternalCommand *>(command.get()) != nullptr;
     if (isExternal) {
-      /* code */
+      int pid = fork();
+      if (pid == -1) {
+        syscallError("fork");
+        return;
+      }
+
+      if (pid == 0) {
+        // Forked child
+        auto fd = open(fileName.c_str(), type == CommandType::Redirect
+                                             ? O_WRONLY | O_CREAT | O_TRUNC
+                                             : O_WRONLY | O_CREAT | O_APPEND);
+        if (fd == -1) {
+          syscallError("open");
+          exit(1);
+        }
+
+        close(STDOUT_FILENO);
+        dup(fd);
+
+        command->execute(this);
+      } else {
+        // Parent
+        if (waitpid(pid, nullptr, 0) == -1) {
+          syscallError("waitpid");
+        }
+      }
     } else {
       // Runs locally so we can open the file and switch the streams easily.
       std::fstream file(fileName, type == CommandType::Redirect

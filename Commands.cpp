@@ -517,10 +517,20 @@ void ExternalCommand::execute(SmallShell *smash) {
     syscallError("setpgrp");
   }
 
-  if (execvp(argv[0], argv) != 0) {
-    syscallError("execvp");
-    exit(1);
-  };
+  // Check if complex external command or regular.
+  if (command_line.find('*') != std::string::npos ||
+      command_line.find('?') != std::string::npos) {
+    if (execl("/bin/bash", "/bin/bash", "-c", command_line.c_str(), nullptr) !=
+        0) {
+      syscallError("execl");
+      exit(1);
+    };
+  } else {
+    if (execvp(argv[0], argv) != 0) {
+      syscallError("execvp");
+      exit(1);
+    };
+  }
 }
 
 //                                                                 //

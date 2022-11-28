@@ -114,7 +114,8 @@ bool SmallShell::isSmashWorking() const { return is_working; }
 void SmallShell::disableSmash() { is_working = false; }
 void SmallShell::killAllJobs() { jobs.killAllJobs(); }
 JobsList *SmallShell::getJobList() { return &jobs; }
-pid_t SmallShell::getCurrnetCommandPid() const { return current_command_pid; }
+pid_t SmallShell::getCurrentCommandPid() const { return current_command_pid; }
+void SmallShell::setCurrentCommandPid(pid_t pid) { current_command_pid = pid; }
 
 void SmallShell::stopCurrentCommand() {
   if (current_command_pid == -1) {
@@ -164,8 +165,9 @@ SmallShell::CreateCommand(const std::string &cmd_line) {
     return std::make_shared<ForegroundCommand>(cmd_line, cmd_s);
   } else if (firstWord.compare("kill") == 0) {
     return std::make_shared<KillCommand>(cmd_line, cmd_s);
-  }
-  {
+  } else if (firstWord.compare("bg") == 0) {
+    return std::make_shared<BackgroundCommand>(cmd_line, cmd_s);
+  } else {
     return std::make_shared<ExternalCommand>(cmd_line, cmd_s, background_flag);
   }
 
@@ -198,7 +200,10 @@ void SmallShell::executeCommand(const char *cmd_line) {
         current_command_pid = pid;
 
         int waitStatus;
-        waitpid(pid, &waitStatus, WUNTRACED);
+        if (waitpid(pid, &waitStatus, WUNTRACED) == -1) {
+          syscallError("waitpid");
+        }
+        current_command_pid = -1;
 
         if (WIFSTOPPED(waitStatus)) {
           jobs.addJob(command, pid, true);
@@ -220,7 +225,8 @@ Command::Command(const std::string &cmd_line,
                  bool background_command_flag)
     : command_line(cmd_line), argv(new char *[MAX_ARGV_LENGTH]),
       argc(_parseCommandLine(cmd_line_stripped, argv)),
-      background_command_flag(background_command_flag) {}
+      background_command_flag(background_command_flag),
+      startTime(time(nullptr)) {}
 
 Command::~Command() {
   for (int i = 0; i < argc; i++) {
@@ -231,6 +237,7 @@ Command::~Command() {
 }
 
 const std::string Command::getCommandLine() const { return command_line; }
+const time_t &Command::getStartTime() const { return startTime; }
 bool Command::isBackgroundCommand() const { return background_command_flag; }
 
 ChangePromptCommand::ChangePromptCommand(const std::string &cmd_line,
@@ -373,14 +380,81 @@ void ForegroundCommand::execute(SmallShell *smash) {
   job->state = JobsList::JobState::Running;
   std::cout << *job << std::endl;
 
+  auto pid = job->pid;
+  auto command = job->command;
+
+  auto jobs = smash->getJobList();
+  jobs->removeJobById(job->id);
+
+  if (kill(pid, SIGCONT) == -1) {
+    syscallError("kill");
+  }
+
+  smash->setCurrentCommandPid(pid);
+  int waitStatus;
+  if (waitpid(pid, &waitStatus, WUNTRACED) == -1) {
+    syscallError("waitpid");
+  }
+  smash->setCurrentCommandPid(-1);
+
+  if (WIFSTOPPED(waitStatus)) {
+    jobs->addJob(command, pid, true);
+    std::cout << "smash: process " << pid << " was stopped" << std::endl;
+  }
+}
+
+BackgroundCommand::BackgroundCommand(const std::string &cmd_line,
+                                     const std::string &cmd_line_stripped)
+    : BuiltInCommand(cmd_line, cmd_line_stripped) {}
+
+void BackgroundCommand::execute(SmallShell *smash) {
+  JobsList::JobEntry *job;
+  if (argc == 1) {
+    job = smash->getJobList()->getLastStoppedJob();
+
+    if (!job) {
+      std::cerr << "smash error: bg: there is no stopped jobs to resume"
+                << std::endl;
+      return;
+    }
+  } else if (argc == 2) {
+    try {
+      int id = std::stoi(argv[1]);
+      if (std::to_string(id).length() != std::string(argv[1]).length()) {
+        throw std::exception();
+      }
+
+      job = smash->getJobList()->getJobById(id);
+
+      if (!job) {
+        std::cerr << "smash error: bg: job-id " << id << " does not exist"
+                  << std::endl;
+        return;
+      }
+
+      if (job->state != JobsList::JobState::Stopped) {
+        std::cerr << "smash error: bg: job-id " << id
+                  << " smash error: bg: job-id <job-id> is already running in "
+                     "the background"
+                  << std::endl;
+        return;
+      }
+
+    } catch (const std::exception &e) {
+      std::cerr << "smash error: bg: invalid arguments" << std::endl;
+      return;
+    }
+  } else {
+    std::cerr << "smash error: bg: invalid arguments" << std::endl;
+    return;
+  }
+
+  job->state = JobsList::JobState::Running;
+  std::cout << *job << std::endl;
+
   if (kill(job->pid, SIGCONT) == -1) {
     syscallError("kill");
   }
-  if (waitpid(job->pid, nullptr, 0) == -1) {
-    syscallError("waitpid");
-  }
-
-  smash->getJobList()->removeJobById(job->id);
 }
 KillCommand::KillCommand(const std::string &cmd_line,
                          const std::string &cmd_line_stripped)
@@ -443,8 +517,8 @@ void ExternalCommand::execute(SmallShell *smash) {
     syscallError("setpgrp");
   }
 
-  if (execv(argv[0], argv) != 0) {
-    syscallError("execv");
+  if (execvp(argv[0], argv) != 0) {
+    syscallError("execvp");
     exit(1);
   };
 }
@@ -454,7 +528,7 @@ void ExternalCommand::execute(SmallShell *smash) {
 //                                                                 //
 std::ostream &operator<<(std::ostream &os, const JobsList::JobEntry &job) {
   auto now = time(nullptr);
-  int delta = (int)difftime(now, job.startTime);
+  int delta = (int)difftime(now, job.command->getStartTime());
 
   os << "[" << job.id << "] " << job.command->getCommandLine() << " : "
      << job.pid << " " << delta << " secs"

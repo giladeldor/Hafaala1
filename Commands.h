@@ -212,6 +212,15 @@ public:
 
 class SmallShell {
 private:
+  enum class CommandType {
+    Regular,
+    Redirect,
+    RedirectAppend,
+    Pipe,
+    PipeErr,
+  };
+
+private:
   const std::string default_display_prompt;
   const pid_t smash_pid;
   std::string current_display_prompt;
@@ -222,8 +231,16 @@ private:
 
   SmallShell();
 
+  CommandType checkType(const std::string &cmd_line) const;
+
 public:
   std::shared_ptr<Command> CreateCommand(const std::string &cmd_line);
+  void CreateRedirectCommand(const std::string &cmd_line,
+                             std::shared_ptr<Command> &outCommand,
+                             std::string &outFileName);
+  //   void CreatePipeCommand(const std::string &cmd_line,
+  //                          std::shared_ptr<Command> &outCommand1,
+  //                          std::shared_ptr<Command> &outCommand2);
   SmallShell(SmallShell const &) = delete;     // disable copy ctor
   void operator=(SmallShell const &) = delete; // disable = operator
   static SmallShell &getInstance()             // make SmallShell singleton

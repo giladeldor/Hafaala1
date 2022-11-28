@@ -19,6 +19,7 @@ protected:
   const int argc;
   bool background_command_flag;
   time_t startTime;
+  int jobId;
   // TODO: Add your data members
 public:
   Command(const std::string &cmd_line, const std::string &cmd_line_stripped,
@@ -28,6 +29,8 @@ public:
   const std::string getCommandLine() const;
   const time_t &getStartTime() const;
   bool isBackgroundCommand() const;
+  int getJobId() const;
+  void setJobId(int id);
   // virtual void prepare();
   // virtual void cleanup();
   // TODO: Add your extra methods if needed

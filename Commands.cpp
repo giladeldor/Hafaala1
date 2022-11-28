@@ -555,12 +555,9 @@ void KillCommand::execute(SmallShell *smash) {
     return;
   }
   int signum = sigNumParser();
-  if (signum <= 0 || signum > 31) {
-    std::cerr << "smash error: kill: invalid arguments" << std::endl;
-    return;
-  }
   int jobid = std::stoi(argv[2]);
-  if (std::to_string(jobid).length() != (std::string(argv[2]).length())) {
+  if (signum <= 0 || signum > 31 ||
+      std::to_string(jobid).length() != (std::string(argv[2]).length())) {
     std::cerr << "smash error: kill: invalid arguments" << std::endl;
     return;
   }

@@ -316,7 +316,7 @@ Command::Command(const std::string &cmd_line,
     : command_line(cmd_line), argv(new char *[MAX_ARGV_LENGTH]),
       argc(_parseCommandLine(cmd_line_stripped, argv)),
       background_command_flag(background_command_flag),
-      startTime(time(nullptr)) {}
+      startTime(time(nullptr)), jobId(-1) {}
 
 Command::~Command() {
   for (int i = 0; i < argc; i++) {
@@ -328,6 +328,8 @@ Command::~Command() {
 
 const std::string Command::getCommandLine() const { return command_line; }
 const time_t &Command::getStartTime() const { return startTime; }
+int Command::getJobId() const { return jobId; }
+void Command::setJobId(int id) { jobId = id; }
 bool Command::isBackgroundCommand() const { return background_command_flag; }
 
 ChangePromptCommand::ChangePromptCommand(const std::string &cmd_line,
@@ -636,9 +638,20 @@ std::ostream &operator<<(std::ostream &os, const JobsList::JobEntry &job) {
 
 void JobsList::addJob(std::shared_ptr<Command> cmd, pid_t pid, bool isStopped) {
   removeFinishedJobs();
-  jobs.push_back(std::make_shared<JobEntry>(cmd, getFreeID(), pid,
-                                            isStopped ? JobState::Stopped
-                                                      : JobState::Running));
+  if (cmd->getJobId() == -1) {
+    cmd->setJobId(getFreeID());
+  }
+  auto job = std::make_shared<JobEntry>(cmd, cmd->getJobId(), pid,
+                                        isStopped ? JobState::Stopped
+                                                  : JobState::Running);
+
+  // Keep the list sorted.
+  auto it = jobs.begin();
+  while (it != jobs.end() && (*it)->id < job->id) {
+    ++it;
+  }
+
+  jobs.insert(it, job);
 }
 
 void JobsList::printJobsList() {
@@ -742,7 +755,7 @@ int JobsList::getFreeID() const {
   // TODO: mask alarm signal when travesing joblist.
 
   if (jobs.empty()) {
-    return 0;
+    return 1;
   }
 
   return jobs.back()->id + 1;

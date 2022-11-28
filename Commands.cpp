@@ -1,4 +1,5 @@
 #include "Commands.h"
+#include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <limits.h>
@@ -97,6 +98,25 @@ SmallShell::~SmallShell() {
   // TODO: add your implementation
 }
 
+SmallShell::CommandType
+SmallShell::checkType(const std::string &cmd_line) const {
+  if (std::string(cmd_line).find(">") != std::string::npos) {
+    if (std::string(cmd_line).find(">>") != std::string::npos) {
+      return CommandType::RedirectAppend;
+    }
+    return CommandType::Redirect;
+  }
+
+  if (std::string(cmd_line).find("|") != std::string::npos) {
+    if (std::string(cmd_line).find("|&") != std::string::npos) {
+      return CommandType::PipeErr;
+    }
+    return CommandType::Pipe;
+  }
+
+  return CommandType::Regular;
+}
+
 const std::string &SmallShell::getLastDir() const { return last_dir; }
 
 void SmallShell::setDisplayPrompt(std::string new_display_line) {
@@ -136,8 +156,8 @@ void SmallShell::killCurrentCommand() {
  * Creates and returns a pointer to Command class which matches the given
  * command line (cmd_line)
  */
-std::shared_ptr<Command>
-SmallShell::CreateCommand(const std::string &cmd_line) {
+static std::shared_ptr<Command> CreateCommandImpl(const std::string &cmd_line,
+                                                  const std::string &original) {
   // For example:
 
   std::string cmd_s = _trim(cmd_line);
@@ -150,70 +170,113 @@ SmallShell::CreateCommand(const std::string &cmd_line) {
   /* check if special command I.E pipe*/
 
   if (firstWord.compare("chprompt") == 0) {
-    return std::make_shared<ChangePromptCommand>(cmd_line, cmd_s);
+    return std::make_shared<ChangePromptCommand>(original, cmd_s);
   } else if (firstWord.compare("showpid") == 0) {
-    return std::make_shared<ShowPidCommand>(cmd_line, cmd_s);
+    return std::make_shared<ShowPidCommand>(original, cmd_s);
   } else if (firstWord.compare("pwd") == 0) {
-    return std::make_shared<GetCurrDirCommand>(cmd_line, cmd_s);
+    return std::make_shared<GetCurrDirCommand>(original, cmd_s);
   } else if (firstWord.compare("cd") == 0) {
-    return std::make_shared<ChangeDirCommand>(cmd_line, cmd_s);
+    return std::make_shared<ChangeDirCommand>(original, cmd_s);
   } else if (firstWord.compare("quit") == 0) {
-    return std::make_shared<QuitCommand>(cmd_line, cmd_s);
+    return std::make_shared<QuitCommand>(original, cmd_s);
   } else if (firstWord.compare("jobs") == 0) {
-    return std::make_shared<JobsCommand>(cmd_line, cmd_s);
+    return std::make_shared<JobsCommand>(original, cmd_s);
   } else if (firstWord.compare("fg") == 0) {
-    return std::make_shared<ForegroundCommand>(cmd_line, cmd_s);
+    return std::make_shared<ForegroundCommand>(original, cmd_s);
   } else if (firstWord.compare("kill") == 0) {
-    return std::make_shared<KillCommand>(cmd_line, cmd_s);
+    return std::make_shared<KillCommand>(original, cmd_s);
   } else if (firstWord.compare("bg") == 0) {
-    return std::make_shared<BackgroundCommand>(cmd_line, cmd_s);
+    return std::make_shared<BackgroundCommand>(original, cmd_s);
   } else {
-    return std::make_shared<ExternalCommand>(cmd_line, cmd_s, background_flag);
+    return std::make_shared<ExternalCommand>(original, cmd_s, background_flag);
   }
 
   return nullptr;
 }
 
+std::shared_ptr<Command>
+SmallShell::CreateCommand(const std::string &cmd_line) {
+  return CreateCommandImpl(cmd_line, cmd_line);
+}
+
+void SmallShell::CreateRedirectCommand(const std::string &cmd_line,
+                                       std::shared_ptr<Command> &outCommand,
+                                       std::string &outFileName) {
+  bool appendFlag = std::string(cmd_line).find(">>") != std::string::npos;
+  size_t index = std::string(cmd_line).find(appendFlag ? ">>" : ">");
+
+  auto command = _trim(std::string(cmd_line).substr(0, index));
+  auto fileName =
+      _trim(std::string(cmd_line).substr(index + (appendFlag ? 2 : 1)));
+
+  outCommand = CreateCommandImpl(command, cmd_line);
+  outFileName = fileName;
+}
+
 void SmallShell::executeCommand(const char *cmd_line) {
   jobs.removeFinishedJobs();
 
-  auto command = CreateCommand(cmd_line);
+  auto type = checkType(cmd_line);
+  if (type == CommandType::Regular) {
+    auto command = CreateCommand(cmd_line);
 
-  // Check if builtin or external
-  bool isExternal = dynamic_cast<ExternalCommand *>(command.get()) != nullptr;
-  if (isExternal) {
-    // TODO: pipe + redirect
-    int pid = fork();
-    if (pid == -1) {
-      syscallError("fork");
-      return;
-    }
+    // Check if builtin or external
+    bool isExternal = dynamic_cast<ExternalCommand *>(command.get()) != nullptr;
+    if (isExternal) {
+      // TODO: pipe + redirect
+      int pid = fork();
+      if (pid == -1) {
+        syscallError("fork");
+        return;
+      }
 
-    if (pid == 0) {
-      // Forked child
-      command->execute(this);
-    } else {
-      // Parent
-      if (command->isBackgroundCommand()) {
-        jobs.addJob(command, pid, false);
+      if (pid == 0) {
+        // Forked child
+        command->execute(this);
       } else {
-        current_command_pid = pid;
+        // Parent
+        if (command->isBackgroundCommand()) {
+          jobs.addJob(command, pid, false);
+        } else {
+          current_command_pid = pid;
 
-        int waitStatus;
-        if (waitpid(pid, &waitStatus, WUNTRACED) == -1) {
-          syscallError("waitpid");
-        }
-        current_command_pid = -1;
+          int waitStatus;
+          if (waitpid(pid, &waitStatus, WUNTRACED) == -1) {
+            syscallError("waitpid");
+          }
+          current_command_pid = -1;
 
-        if (WIFSTOPPED(waitStatus)) {
-          jobs.addJob(command, pid, true);
-          std::cout << "smash: process " << pid << " was stopped" << std::endl;
+          if (WIFSTOPPED(waitStatus)) {
+            jobs.addJob(command, pid, true);
+            std::cout << "smash: process " << pid << " was stopped"
+                      << std::endl;
+          }
         }
       }
-    }
 
-  } else {
-    command->execute(this);
+    } else {
+      command->execute(this);
+    }
+  } else if (type == CommandType::Redirect ||
+             type == CommandType::RedirectAppend) {
+    std::shared_ptr<Command> command;
+    std::string fileName;
+    CreateRedirectCommand(cmd_line, command, fileName);
+
+    bool isExternal = dynamic_cast<ExternalCommand *>(command.get()) != nullptr;
+    if (isExternal) {
+      /* code */
+    } else {
+      // Runs locally so we can open the file and switch the streams easily.
+      std::fstream file(fileName, type == CommandType::Redirect
+                                      ? std::fstream::out | std::fstream::trunc
+                                      : std::fstream::out | std::fstream::app);
+      auto originalBuf = std::cout.rdbuf(file.rdbuf());
+
+      command->execute(this);
+
+      std::cout.rdbuf(originalBuf);
+    }
   }
 }
 

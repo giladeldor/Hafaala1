@@ -204,8 +204,10 @@ class KillCommand : public BuiltInCommand {
   /* Bonus */
   // TODO: Add your data members
 public:
-  KillCommand(const std::string &cmd_line, JobsList *jobs);
+  KillCommand(const std::string &cmd_line,
+              const std::string &cmd_line_stripped);
   virtual ~KillCommand() {}
+  int sigNumParser() const;
   void execute(SmallShell *smash) override;
 };
 

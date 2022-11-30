@@ -665,16 +665,21 @@ void JobsList::printJobsList() {
 
 void JobsList::killAllJobs() {
   // TODO: mask alarm signal when travesing joblist.
-
-  for (auto &&job : jobs) {
-    if (kill(job->pid, SIGKILL) == -1) {
-      syscallError("kill");
+  auto size = jobs.size();
+  if (size != 0) {
+    std::cout << "sending SIGKILL signal to " << size << " jobs:" << std::endl;
+    for (auto &&job : jobs) {
+      if (kill(job->pid, SIGKILL) == -1) {
+        syscallError("kill");
+      } else {
+        std::cout << (*job) << std::endl;
+      }
+      if (waitpid(job->pid, nullptr, 0) == -1) {
+        syscallError("waitpid");
+      }
     }
-    if (waitpid(job->pid, nullptr, 0) == -1) {
-      syscallError("waitpid");
-    }
+    jobs.clear();
   }
-  jobs.clear();
 }
 
 void JobsList::removeFinishedJobs() {

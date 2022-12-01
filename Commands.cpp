@@ -789,24 +789,31 @@ void FareCommand::execute(SmallShell *smash) {
   }
   close(fd);
 
-  std::fstream file(argv[1]);
-
-  std::stringstream ss;
-  ss << file.rdbuf();
-  std::string contents = ss.str();
+  std::string contents;
+  {
+    std::ifstream file(argv[1]);
+    std::stringstream ss;
+    ss << file.rdbuf();
+    contents = ss.str();
+  }
 
   std::string source = argv[2];
   std::string target = argv[3];
 
+  int counter = 0;
   auto index = contents.find(source);
   while (index != std::string::npos) {
     contents.erase(index, source.length());
     contents.insert(index, target);
 
-    index = contents.find(source);
+    index = contents.find(source, index + target.length());
+    counter++;
   }
 
-  file.clear();
+  std::cout << "replaced " << counter << " instances of the string \"" << source
+            << "\"" << std::endl;
+
+  std::ofstream file(argv[1]);
   file << contents;
 }
 

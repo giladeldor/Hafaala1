@@ -138,14 +138,22 @@ bool SmallShell::isSmashWorking() const { return is_working; }
 void SmallShell::disableSmash() { is_working = false; }
 void SmallShell::killAllJobs() { jobs.killAllJobs(); }
 JobsList *SmallShell::getJobList() { return &jobs; }
+std::shared_ptr<Command> SmallShell::getCurrentCommand() const {
+  return current_command;
+}
 pid_t SmallShell::getCurrentCommandPid() const { return current_command_pid; }
+
 void SmallShell::setCurrentCommandPid(pid_t pid) { current_command_pid = pid; }
+void SmallShell::setCurrentCommand(std::shared_ptr<Command> command) {
+  current_command = command;
+}
 
 void SmallShell::stopCurrentCommand() {
   if (current_command_pid == -1) {
     return;
   }
 
+  std::cout << "smash: got ctrl-Z" << std::endl;
   kill(current_command_pid, SIGSTOP);
 }
 
@@ -154,6 +162,7 @@ void SmallShell::killCurrentCommand() {
     return;
   }
 
+  std::cout << "smash: got ctrl-c" << std::endl;
   kill(current_command_pid, SIGKILL);
 }
 /**
@@ -258,12 +267,14 @@ void SmallShell::executeCommand(const char *cmd_line) {
           jobs.addJob(command, pid, false);
         } else {
           current_command_pid = pid;
+          current_command = command;
 
           int waitStatus;
           if (waitpid(pid, &waitStatus, WUNTRACED) == -1) {
             syscallError("waitpid");
           }
           current_command_pid = -1;
+          current_command = nullptr;
 
           if (WIFSTOPPED(waitStatus)) {
             jobs.addJob(command, pid, true);
@@ -574,11 +585,13 @@ void ForegroundCommand::execute(SmallShell *smash) {
   }
 
   smash->setCurrentCommandPid(pid);
+  smash->setCurrentCommand(std::shared_ptr<Command>(this));
   int waitStatus;
   if (waitpid(pid, &waitStatus, WUNTRACED) == -1) {
     syscallError("waitpid");
   }
   smash->setCurrentCommandPid(-1);
+  smash->setCurrentCommand(nullptr);
 
   if (WIFSTOPPED(waitStatus)) {
     jobs->addJob(command, pid, true);
@@ -864,7 +877,16 @@ JobsList::JobEntry *JobsList::getJobById(int jobId) {
 
   return nullptr;
 }
+JobsList::JobEntry *JobsList::getJobByPid(pid_t jobPid) {
+  // TODO: mask alarm signal when travesing joblist.
+  for (auto &&job : jobs) {
+    if (job->pid == jobPid) {
+      return job.get();
+    }
+  }
 
+  return nullptr;
+}
 void JobsList::removeJobById(int jobId) {
   // TODO: mask alarm signal when travesing joblist.
   auto it = jobs.begin();

@@ -672,7 +672,8 @@ void JobsList::killAllJobs() {
       if (kill(job->pid, SIGKILL) == -1) {
         syscallError("kill");
       } else {
-        std::cout << (*job) << std::endl;
+        std::cout << job->pid << ": " << job->command->getCommandLine()
+                  << std::endl;
       }
       if (waitpid(job->pid, nullptr, 0) == -1) {
         syscallError("waitpid");

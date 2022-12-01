@@ -7,6 +7,7 @@
 #include <sstream>
 #include <string.h>
 #include <sys/stat.h>
+#include <sys/sysinfo.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -190,6 +191,8 @@ static std::shared_ptr<Command> CreateCommandImpl(const std::string &cmd_line,
     return std::make_shared<KillCommand>(original, cmd_s);
   } else if (firstWord.compare("bg") == 0) {
     return std::make_shared<BackgroundCommand>(original, cmd_s);
+  } else if (firstWord.compare("setcore") == 0) {
+    return std::make_shared<SetcoreCommand>(original, cmd_s);
   } else {
     return std::make_shared<ExternalCommand>(original, cmd_s, background_flag);
   }
@@ -614,9 +617,7 @@ void BackgroundCommand::execute(SmallShell *smash) {
 
       if (job->state != JobsList::JobState::Stopped) {
         std::cerr << "smash error: bg: job-id " << id
-                  << " smash error: bg: job-id <job-id> is already running in "
-                     "the background"
-                  << std::endl;
+                  << " is already running in the background" << std::endl;
         return;
       }
 
@@ -683,6 +684,63 @@ int KillCommand::sigNumParser() const {
     return -1;
   }
 }
+
+SetcoreCommand::SetcoreCommand(const std::string &cmd_line,
+                               const std::string &cmd_line_stripped)
+    : BuiltInCommand(cmd_line, cmd_line_stripped) {}
+
+void SetcoreCommand::execute(SmallShell *smash) {
+
+  JobsList::JobEntry *job;
+  int coreNum;
+
+  try {
+    if (argc != 3) {
+      throw std::exception();
+    }
+
+    int jobId = std::stoi(argv[1]);
+    if (std::to_string(jobId).length() != std::string(argv[1]).length()) {
+      throw std::exception();
+    }
+
+    coreNum = std::stoi(argv[2]);
+    if (std::to_string(coreNum).length() != std::string(argv[2]).length()) {
+      throw std::exception();
+    }
+
+    job = smash->getJobList()->getJobById(jobId);
+    if (!job) {
+      std::cerr << "smash error: setcore: job-id " << jobId << " does not exist"
+                << std::endl;
+      return;
+    }
+
+    if (coreNum < 0 || get_nprocs() <= coreNum) {
+      std::cerr << "smash error: setcore: invalid core number" << std::endl;
+      return;
+    }
+
+  } catch (const std::exception &e) {
+    std::cerr << "smash error: setcore: invalid arguments" << std::endl;
+    return;
+  }
+
+  cpu_set_t cpuSet;
+  if (sched_getaffinity(job->pid, sizeof(cpu_set_t), &cpuSet) == -1) {
+    syscallError("sched_getaffinity");
+    return;
+  }
+
+  CPU_ZERO(&cpuSet);
+  CPU_SET(coreNum, &cpuSet);
+
+  if (sched_setaffinity(job->pid, sizeof(cpu_set_t), &cpuSet) == -1) {
+    syscallError("sched_setaffinity");
+    return;
+  }
+}
+
 ExternalCommand::ExternalCommand(const std::string &cmd_line,
                                  const std::string &cmd_line_stripped,
                                  bool background_command_flag)

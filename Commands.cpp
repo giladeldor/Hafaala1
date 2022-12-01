@@ -305,9 +305,11 @@ void SmallShell::executeCommand(const char *cmd_line) {
 
       if (pid == 0) {
         // Forked child
-        auto fd = open(fileName.c_str(), type == CommandType::Redirect
-                                             ? O_WRONLY | O_CREAT | O_TRUNC
-                                             : O_WRONLY | O_CREAT | O_APPEND);
+        auto fd =
+            open(fileName.c_str(),
+                 type == CommandType::Redirect ? O_WRONLY | O_CREAT | O_TRUNC
+                                               : O_WRONLY | O_CREAT | O_APPEND,
+                 0666);
         if (fd == -1) {
           syscallError("open");
           exit(1);

@@ -204,6 +204,8 @@ static std::shared_ptr<Command> CreateCommandImpl(const std::string &cmd_line,
     return std::make_shared<BackgroundCommand>(original, cmd_s);
   } else if (firstWord.compare("setcore") == 0) {
     return std::make_shared<SetcoreCommand>(original, cmd_s);
+  } else if (firstWord.compare("fare") == 0) {
+    return std::make_shared<FareCommand>(original, cmd_s);
   } else {
     return std::make_shared<ExternalCommand>(original, cmd_s, background_flag);
   }
@@ -768,6 +770,44 @@ void SetcoreCommand::execute(SmallShell *smash) {
     syscallError("sched_setaffinity");
     return;
   }
+}
+
+FareCommand::FareCommand(const std::string &cmd_line,
+                         const std::string &cmd_line_stripped)
+    : BuiltInCommand(cmd_line, cmd_line_stripped) {}
+
+void FareCommand::execute(SmallShell *smash) {
+  if (argc != 4) {
+    std::cerr << "smash error: fare: invalid arguments" << std::endl;
+    return;
+  }
+
+  int fd = open(argv[1], O_RDONLY);
+  if (fd == -1) {
+    syscallError("open");
+    return;
+  }
+  close(fd);
+
+  std::fstream file(argv[1]);
+
+  std::stringstream ss;
+  ss << file.rdbuf();
+  std::string contents = ss.str();
+
+  std::string source = argv[2];
+  std::string target = argv[3];
+
+  auto index = contents.find(source);
+  while (index != std::string::npos) {
+    contents.erase(index, source.length());
+    contents.insert(index, target);
+
+    index = contents.find(source);
+  }
+
+  file.clear();
+  file << contents;
 }
 
 ExternalCommand::ExternalCommand(const std::string &cmd_line,

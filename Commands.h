@@ -187,10 +187,9 @@ public:
 };
 
 class FareCommand : public BuiltInCommand {
-  /* Optional */
-  // TODO: Add your data members
 public:
-  FareCommand(const std::string &cmd_line);
+  FareCommand(const std::string &cmd_line,
+              const std::string &cmd_line_stripped);
   virtual ~FareCommand() {}
   void execute(SmallShell *smash) override;
 };

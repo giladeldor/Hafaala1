@@ -216,6 +216,20 @@ void SmallShell::CreateRedirectCommand(const std::string &cmd_line,
   outFileName = fileName;
 }
 
+void SmallShell::CreatePipeCommand(const std::string &cmd_line,
+                                   std::shared_ptr<Command> &outCommand1,
+                                   std::shared_ptr<Command> &outCommand2) {
+  bool errFlag = std::string(cmd_line).find("|&") != std::string::npos;
+  size_t index = std::string(cmd_line).find(errFlag ? "|&" : "|");
+
+  auto command1 = _trim(std::string(cmd_line).substr(0, index));
+  auto command2 =
+      _trim(std::string(cmd_line).substr(index + (errFlag ? 2 : 1)));
+
+  outCommand1 = CreateCommandImpl(command1, cmd_line);
+  outCommand2 = CreateCommandImpl(command2, cmd_line);
+}
+
 void SmallShell::executeCommand(const char *cmd_line) {
   jobs.removeFinishedJobs();
 
@@ -304,6 +318,80 @@ void SmallShell::executeCommand(const char *cmd_line) {
 
       std::cout.rdbuf(originalBuf);
     }
+  } else if (type == CommandType::Pipe || type == CommandType::PipeErr) {
+    std::shared_ptr<Command> command1, command2;
+    CreatePipeCommand(cmd_line, command1, command2);
+
+    int pipe[2];
+    if (::pipe(pipe) == -1) {
+      syscallError("pipe");
+      return;
+    }
+
+    int read = pipe[0];
+    int write = pipe[1];
+    int output = type == CommandType::Pipe ? STDOUT_FILENO : STDERR_FILENO;
+
+    bool isExternal1 =
+        dynamic_cast<ExternalCommand *>(command1.get()) != nullptr;
+    if (isExternal1) {
+      int pid = fork();
+      if (pid == -1) {
+        syscallError("fork");
+        return;
+      }
+
+      if (pid == 0) {
+        // Forked child
+        close(read);
+        dup2(write, output);
+
+        command1->execute(this);
+      } else {
+        // Parent
+        if (waitpid(pid, nullptr, 0) == -1) {
+          syscallError("waitpid");
+        }
+      }
+    } else {
+      int originalOut = dup(output);
+      dup2(write, output);
+
+      command1->execute(this);
+
+      dup2(originalOut, output);
+    }
+    close(write);
+
+    bool isExternal2 =
+        dynamic_cast<ExternalCommand *>(command2.get()) != nullptr;
+    if (isExternal2) {
+      int pid = fork();
+      if (pid == -1) {
+        syscallError("fork");
+        return;
+      }
+
+      if (pid == 0) {
+        // Forked child
+        dup2(read, STDIN_FILENO);
+
+        command2->execute(this);
+      } else {
+        // Parent
+        if (waitpid(pid, nullptr, 0) == -1) {
+          syscallError("waitpid");
+        }
+      }
+    } else {
+      int originalIn = dup(STDIN_FILENO);
+      dup2(read, STDIN_FILENO);
+
+      command2->execute(this);
+
+      dup2(originalIn, STDIN_FILENO);
+    }
+    close(read);
   }
 }
 
@@ -672,7 +760,8 @@ void JobsList::killAllJobs() {
       if (kill(job->pid, SIGKILL) == -1) {
         syscallError("kill");
       } else {
-        std::cout << (*job) << std::endl;
+        std::cout << job->pid << ": " << job->command->getCommandLine()
+                  << std::endl;
       }
       if (waitpid(job->pid, nullptr, 0) == -1) {
         syscallError("waitpid");

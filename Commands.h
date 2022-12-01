@@ -241,9 +241,9 @@ public:
   void CreateRedirectCommand(const std::string &cmd_line,
                              std::shared_ptr<Command> &outCommand,
                              std::string &outFileName);
-  //   void CreatePipeCommand(const std::string &cmd_line,
-  //                          std::shared_ptr<Command> &outCommand1,
-  //                          std::shared_ptr<Command> &outCommand2);
+  void CreatePipeCommand(const std::string &cmd_line,
+                         std::shared_ptr<Command> &outCommand1,
+                         std::shared_ptr<Command> &outCommand2);
   SmallShell(SmallShell const &) = delete;     // disable copy ctor
   void operator=(SmallShell const &) = delete; // disable = operator
   static SmallShell &getInstance()             // make SmallShell singleton

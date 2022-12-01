@@ -660,24 +660,34 @@ void KillCommand::execute(SmallShell *smash) {
     std::cerr << "smash error: kill: invalid arguments" << std::endl;
     return;
   }
-  int signum = sigNumParser();
-  int jobid = std::stoi(argv[2]);
-  if (signum <= 0 || signum > 31 ||
-      std::to_string(jobid).length() != (std::string(argv[2]).length())) {
+
+  int signum, jobid;
+
+  try {
+    signum = sigNumParser();
+    jobid = std::stoi(argv[2]);
+    if (signum <= 0 || signum > 31 ||
+        std::to_string(jobid).length() != (std::string(argv[2]).length())) {
+      throw std::exception();
+    }
+  } catch (const std::exception &e) {
     std::cerr << "smash error: kill: invalid arguments" << std::endl;
     return;
   }
+
   JobsList::JobEntry *job_to_sig = smash->getJobList()->getJobById(jobid);
   if (!job_to_sig || job_to_sig->state == JobsList::JobState::Killed) {
     std::cerr << "smash error: kill: job-id " << jobid << " does not exist"
               << std::endl;
     return;
   }
+
   if (kill(job_to_sig->pid, signum) == -1) {
     syscallError("kill");
   }
   std::cout << "signal number " << signum << " was sent to pid "
             << job_to_sig->pid << std::endl;
+
   if (signum == SIGCONT) {
     job_to_sig->state = JobsList::JobState::Running;
   }
@@ -688,21 +698,18 @@ void KillCommand::execute(SmallShell *smash) {
     job_to_sig->state = JobsList::JobState::Killed;
   }
 }
+
 int KillCommand::sigNumParser() const {
   std::string s = argv[1];
   if (s[0] != '-') {
-    std::cerr << "smash error: kill: invalid arguments" << std::endl;
+    throw std::exception();
   }
   s.erase(0, 1);
-  try {
-    int id = std::stoi(s);
-    if (std::to_string(id).length() != (std::string(argv[1]).length() - 1)) {
-      throw std::exception();
-    }
-    return id;
-  } catch (const std::exception &e) {
-    return -1;
+  int id = std::stoi(s);
+  if (std::to_string(id).length() != (std::string(argv[1]).length() - 1)) {
+    throw std::exception();
   }
+  return id;
 }
 
 SetcoreCommand::SetcoreCommand(const std::string &cmd_line,
@@ -832,22 +839,20 @@ void JobsList::printJobsList() {
 void JobsList::killAllJobs() {
   // TODO: mask alarm signal when travesing joblist.
   auto size = jobs.size();
-  if (size != 0) {
-    std::cout << "smash: sending SIGKILL signal to " << size
-              << " jobs:" << std::endl;
-    for (auto &&job : jobs) {
-      if (kill(job->pid, SIGKILL) == -1) {
-        syscallError("kill");
-      } else {
-        std::cout << job->pid << ": " << job->command->getCommandLine()
-                  << std::endl;
-      }
-      if (waitpid(job->pid, nullptr, 0) == -1) {
-        syscallError("waitpid");
-      }
+  std::cout << "smash: sending SIGKILL signal to " << size
+            << " jobs:" << std::endl;
+  for (auto &&job : jobs) {
+    if (kill(job->pid, SIGKILL) == -1) {
+      syscallError("kill");
+    } else {
+      std::cout << job->pid << ": " << job->command->getCommandLine()
+                << std::endl;
     }
-    jobs.clear();
+    if (waitpid(job->pid, nullptr, 0) == -1) {
+      syscallError("waitpid");
+    }
   }
+  jobs.clear();
 }
 
 void JobsList::removeFinishedJobs() {

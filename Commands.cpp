@@ -138,31 +138,33 @@ bool SmallShell::isSmashWorking() const { return is_working; }
 void SmallShell::disableSmash() { is_working = false; }
 void SmallShell::killAllJobs() { jobs.killAllJobs(); }
 JobsList *SmallShell::getJobList() { return &jobs; }
-std::shared_ptr<Command> SmallShell::getCurrentCommand() const {
-  return current_command;
-}
+Command *SmallShell::getCurrentCommand() const { return current_command; }
 pid_t SmallShell::getCurrentCommandPid() const { return current_command_pid; }
 
 void SmallShell::setCurrentCommandPid(pid_t pid) { current_command_pid = pid; }
-void SmallShell::setCurrentCommand(std::shared_ptr<Command> command) {
+void SmallShell::setCurrentCommand(Command *command) {
   current_command = command;
 }
 
 void SmallShell::stopCurrentCommand() {
+  std::cout << "smash: got ctrl-Z" << std::endl;
+
   if (current_command_pid == -1) {
     return;
   }
 
-  std::cout << "smash: got ctrl-Z" << std::endl;
   kill(current_command_pid, SIGSTOP);
 }
 
 void SmallShell::killCurrentCommand() {
+  std::cout << "smash: got ctrl-C" << std::endl;
+
   if (current_command_pid == -1) {
     return;
   }
 
-  std::cout << "smash: got ctrl-c" << std::endl;
+  std::cout << "smash: process " << current_command_pid << " was killed"
+            << std::endl;
   kill(current_command_pid, SIGKILL);
 }
 /**
@@ -267,7 +269,7 @@ void SmallShell::executeCommand(const char *cmd_line) {
           jobs.addJob(command, pid, false);
         } else {
           current_command_pid = pid;
-          current_command = command;
+          current_command = command.get();
 
           int waitStatus;
           if (waitpid(pid, &waitStatus, WUNTRACED) == -1) {
@@ -572,7 +574,7 @@ void ForegroundCommand::execute(SmallShell *smash) {
   }
 
   job->state = JobsList::JobState::Running;
-  std::cout << *job << std::endl;
+  std::cout << job->command->getCommandLine() << " : " << job->pid << std::endl;
 
   auto pid = job->pid;
   auto command = job->command;
@@ -585,7 +587,7 @@ void ForegroundCommand::execute(SmallShell *smash) {
   }
 
   smash->setCurrentCommandPid(pid);
-  smash->setCurrentCommand(std::shared_ptr<Command>(this));
+  smash->setCurrentCommand(this);
   int waitStatus;
   if (waitpid(pid, &waitStatus, WUNTRACED) == -1) {
     syscallError("waitpid");
@@ -644,7 +646,7 @@ void BackgroundCommand::execute(SmallShell *smash) {
   }
 
   job->state = JobsList::JobState::Running;
-  std::cout << *job << std::endl;
+  std::cout << job->command->getCommandLine() << " : " << job->pid << std::endl;
 
   if (kill(job->pid, SIGCONT) == -1) {
     syscallError("kill");
@@ -666,7 +668,7 @@ void KillCommand::execute(SmallShell *smash) {
     return;
   }
   JobsList::JobEntry *job_to_sig = smash->getJobList()->getJobById(jobid);
-  if (!job_to_sig) {
+  if (!job_to_sig || job_to_sig->state == JobsList::JobState::Killed) {
     std::cerr << "smash error: kill: job-id " << jobid << " does not exist"
               << std::endl;
     return;
@@ -681,6 +683,9 @@ void KillCommand::execute(SmallShell *smash) {
   }
   if (signum == SIGSTOP) {
     job_to_sig->state = JobsList::JobState::Stopped;
+  }
+  if (signum == SIGKILL) {
+    job_to_sig->state = JobsList::JobState::Killed;
   }
 }
 int KillCommand::sigNumParser() const {
@@ -828,7 +833,8 @@ void JobsList::killAllJobs() {
   // TODO: mask alarm signal when travesing joblist.
   auto size = jobs.size();
   if (size != 0) {
-    std::cout << "sending SIGKILL signal to " << size << " jobs:" << std::endl;
+    std::cout << "smash: sending SIGKILL signal to " << size
+              << " jobs:" << std::endl;
     for (auto &&job : jobs) {
       if (kill(job->pid, SIGKILL) == -1) {
         syscallError("kill");
@@ -850,6 +856,12 @@ void JobsList::removeFinishedJobs() {
   auto it = jobs.begin();
   while (it != jobs.end()) {
     auto job = *it;
+    if (job->state == JobState::Killed) {
+      auto current = it++;
+      jobs.erase(current);
+
+      continue;
+    }
 
     int waitStatus;
     int res = waitpid(job->pid, &waitStatus, WNOHANG);

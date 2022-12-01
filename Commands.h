@@ -119,7 +119,7 @@ public:
 
 class JobsList {
 public:
-  enum class JobState { Running, Stopped };
+  enum class JobState { Running, Stopped, Killed };
   struct JobEntry {
     JobEntry(std::shared_ptr<Command> command, int id, pid_t pid,
              JobState state)
@@ -231,7 +231,7 @@ private:
   std::string last_dir;
   bool is_working;
   JobsList jobs;
-  std::shared_ptr<Command> current_command = nullptr;
+  Command *current_command = nullptr;
   pid_t current_command_pid = -1;
 
   SmallShell();
@@ -270,10 +270,10 @@ public:
   void stopCurrentCommand();
   void killCurrentCommand();
   JobsList *getJobList();
-  std::shared_ptr<Command> getCurrentCommand() const;
+  Command *getCurrentCommand() const;
   pid_t getCurrentCommandPid() const;
   void setCurrentCommandPid(pid_t pid);
-  void setCurrentCommand(std::shared_ptr<Command> command);
+  void setCurrentCommand(Command *command);
 };
 
 #endif // SMASH_COMMAND_H_

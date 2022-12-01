@@ -674,6 +674,8 @@ void KillCommand::execute(SmallShell *smash) {
   if (kill(job_to_sig->pid, signum) == -1) {
     syscallError("kill");
   }
+  std::cout << "signal number " << signum << " was sent to pid "
+            << job_to_sig->pid << std::endl;
   if (signum == SIGCONT) {
     job_to_sig->state = JobsList::JobState::Running;
   }

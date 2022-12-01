@@ -194,10 +194,9 @@ public:
 };
 
 class SetcoreCommand : public BuiltInCommand {
-  /* Optional */
-  // TODO: Add your data members
 public:
-  SetcoreCommand(const std::string &cmd_line);
+  SetcoreCommand(const std::string &cmd_line,
+                 const std::string &cmd_line_stripped);
   virtual ~SetcoreCommand() {}
   void execute(SmallShell *smash) override;
 };
